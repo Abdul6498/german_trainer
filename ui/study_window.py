@@ -49,7 +49,7 @@ class StudyWindow:
         shell.pack(fill="both", expand=True)
         ttk.Label(shell, text="German Trainer - Study", font=("TkDefaultFont", 14, "bold")).pack(pady=(2, 6))
         ttk.Label(shell, text=f"German: {quiz.german_word}", font=("TkDefaultFont", 14, "bold")).pack(pady=2)
-        ttk.Label(shell, text=f"English: {quiz.english_word}", font=("TkDefaultFont", 11)).pack(pady=2)
+        ttk.Label(shell, text=f"English: {quiz.english_word}", font=("TkDefaultFont", 11, "bold")).pack(pady=2)
         ttk.Label(shell, text=f"Word type: {quiz.word_type}", font=("TkDefaultFont", 11)).pack(pady=1)
         if quiz.cefr_level:
             ttk.Label(shell, text=f"Detected CEFR: {quiz.cefr_level}").pack(pady=1)
@@ -171,7 +171,7 @@ class StudyWindow:
         top = ttk.Frame(shell)
         top.pack(fill="x", pady=(0, 10))
         ttk.Label(top, text=f"German: {quiz.german_word}", font=("TkDefaultFont", 12, "bold")).pack(side="left")
-        ttk.Label(top, text=f"English: {quiz.english_word}", font=("TkDefaultFont", 11)).pack(side="right")
+        ttk.Label(top, text=f"English: {quiz.english_word}", font=("TkDefaultFont", 11, "bold")).pack(side="right")
 
         details = ttk.LabelFrame(shell, text="Quick Details", padding=8)
         details.pack(fill="x")

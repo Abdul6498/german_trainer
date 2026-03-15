@@ -446,6 +446,9 @@ class QuizEngine:
                 sentence_translation_en = ai_full.translation_en
                 sentence_structure = ai_full.structure
                 sentence_structure_points = ai_full.structure_points or []
+                # In AI mode, exact token matching (e.g., "lesen" vs "lese")
+                # can incorrectly flag valid sentences. Trust AI judgment here.
+                sentence_has_required_word = bool(user_sentence.strip())
         elif self.sentence_checker is not None:
             sentence_check = self.sentence_checker.check(user_sentence)
             sentence_check_available = sentence_check.available
@@ -461,21 +464,12 @@ class QuizEngine:
         else:
             sentence_correct = sentence_has_required_word and sentence_check_is_correct
 
-        # Evaluate based on exercise focus so correct answers are not rejected
-        # due to unrelated fields.
-        focus = (quiz.focus_mode or "").strip().lower()
-        if focus == "translation":
-            is_correct = translation_correct and not skipped
-        elif focus == "article":
-            is_correct = translation_correct and article_correct and type_correct and not skipped
-        elif focus == "conjugation":
-            is_correct = translation_correct and type_correct and not skipped
-        elif focus == "sentence":
-            is_correct = sentence_has_required_word and not skipped
-        elif focus == "fill_blank":
-            is_correct = translation_correct and not skipped
-        else:
-            is_correct = translation_correct and type_correct and not skipped
+        # Quiz scoring excludes sentence quality. Sentences are feedback-only.
+        # Required scoring: translation + type, and article for nouns.
+        base_correct = translation_correct and type_correct
+        if quiz.word_type == "noun":
+            base_correct = base_correct and article_correct
+        is_correct = base_correct and not skipped
 
         existing_record = self.progress_tracker.get_word_progress(quiz.english_word)
         updated_record = self.spaced_repetition.update(existing_record, is_correct)
