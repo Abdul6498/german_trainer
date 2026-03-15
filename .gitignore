@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Virtual env
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Runtime/local app state (do not push)
+storage/progress.json
+storage/history.json
+storage/word_meta.json
+
+# Local generated caches
+data/generated_words_*.txt
+data/generated_german_words_*.txt
+
+# Temporary audio and logs
+*.mp3
+*.log
+
+# Legacy generated cache
+data/generated_words.txt

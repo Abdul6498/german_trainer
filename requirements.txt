@@ -1,0 +1,10 @@
+deep-translator
+german-nouns
+verbformen-cli
+schedule
+gtts
+playsound==1.2.2
+rich
+wonderwords
+language_tool_python
+openai
