@@ -2,33 +2,22 @@
 
 ## Implemented
 
-- Timed popup scheduler with configurable interval
-- Vocabulary translation quizzes (EN -> DE) using CEFR curriculum + `wonderwords`
-- Article practice (`der/die/das`)
-- Sentence creation validation
-- Verb/adjective/adverb lookup with `verbformen-cli` API and noun metadata via `german-nouns`
-- Spaced repetition with per-word `next_review`
-- Pronunciation playback using `gTTS`
-- Session statistics with `rich`
-- Skip shortcut (`Esc`) and CEFR level controls (`A1`..`C2`)
-- Immediate repeat for incorrect answers until correct
-- "I have learned this word" checkbox to mark and skip words
-- Study-first architecture: show German+details first, then quiz only after user confirms understanding
-- Rich dictionary details in UI from `german-nouns` (flexion/compound) and `verbformen-cli`
-- Session mode switch: `mixed`, `study-only`, `quiz-only`
-- Table-based study view with `basic` and `detail` layouts
-- AI level-aware word explanation in study view and AI sentence translation/structure feedback in result view
+- FastAPI backend for trainer sessions
+- Browser frontend with study, quiz, and result views
+- AI-backed word profiles, study notes, and sentence feedback
+- Daily new-word goal support
+- Local progress/history/word metadata persistence
 
-## Next features
+## Next
 
-- Add strictness levels for answer matching (normal/lenient/strict)
-- Add full fill-in-the-blank UI variant with dedicated prompt field
-- Add grammar drill modes (Akkusativ, Dativ, adjective endings)
-- Add import/export for vocabulary packs
+- Add user-editable settings inside the frontend
+- Add audio playback from the browser with selectable voices
+- Add richer detail view tabs for nouns, verbs, and grammar notes
+- Add import/export for custom vocabulary packs
 
 ## Known gaps
 
-- Some grammar lookups rely on fallback heuristics if external tools fail
-- Translation and TTS may need internet connectivity depending package behavior
-- Verb conjugation parsing is resilient but not tied to one guaranteed CLI output format
-- WSL without WSLg will not display tkinter popups
+- The checked-in frontend JS is browser-ready, but there is not yet a Node build pipeline in the repo
+- Audio currently uses browser speech synthesis rather than a backend-generated stream in the web UI
+- The session state is single-user and in-memory, which is fine locally but not designed for multi-user deployment
+

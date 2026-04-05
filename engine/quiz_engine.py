@@ -80,10 +80,11 @@ class QuizEngine:
         self.sentence_source = sentence_source
         self.daily_goal_words = max(0, int(daily_goal_words))
 
-    def create_quiz(self, english_word: str | None = None) -> QuizItem:
+    def create_quiz(self, english_word: str | None = None, *, mark_presented: bool = True) -> QuizItem:
         if english_word is None:
             english_word = self._select_word_for_daily_goal()
-        self.progress_tracker.mark_word_presented(english_word)
+        if mark_presented:
+            self.progress_tracker.mark_word_presented(english_word)
 
         if self.word_source.source == "ai":
             raw_token = english_word or self.word_source.next_word()

@@ -8,3 +8,5 @@ rich
 wonderwords
 language_tool_python
 openai
+fastapi
+uvicorn

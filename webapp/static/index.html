@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>German Trainer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark">GT</div>
+          <div>
+            <p class="topbar-label">German Trainer</p>
+            <h1 class="brand-title"><span>German</span><span>Flow</span></h1>
+          </div>
+        </div>
+
+        <div class="topbar-center">
+          <section class="overview-strip">
+            <div class="mini-card">
+              <span class="mini-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 3 4 7v6c0 4.4 3.4 7.9 8 8 4.6-.1 8-3.6 8-8V7l-8-4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M9 12.2 11 14l4-4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <div>
+                <span class="mini-label">Level</span>
+                <strong id="levelValue">-</strong>
+              </div>
+            </div>
+            <div class="mini-card">
+              <span class="mini-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4 7h16M4 12h10M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <circle cx="16" cy="12" r="2.2" fill="currentColor"/>
+                </svg>
+              </span>
+              <div>
+                <span class="mini-label">Mode</span>
+                <strong id="modeValue">-</strong>
+              </div>
+            </div>
+            <div class="mini-card">
+              <span class="mini-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M12 7.5v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <div>
+                <span class="mini-label">Next</span>
+                <strong id="countdownValue">-</strong>
+              </div>
+            </div>
+            <div class="mini-card">
+              <span class="mini-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 3.5 19 8v8l-7 4.5L5 16V8l7-4.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M8.5 12h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <div>
+                <span class="mini-label">Goal</span>
+                <strong id="goalValue">-</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="ghost-button compact-button" id="triggerNowButton" type="button">Due Now</button>
+          <button class="icon-button" id="openSettingsButton" type="button" aria-label="Open settings">⚙</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="hero hero-strip">
+          <div>
+            <span class="eyebrow">Live Trainer</span>
+            <h2 id="heroTitle">Waiting for the next card</h2>
+            <p id="heroCopy">
+              The trainer will bring the next study or quiz card here automatically.
+            </p>
+          </div>
+          <div class="hero-status">
+            <span class="status-pill" id="stageBadge">Idle</span>
+          </div>
+        </section>
+
+        <section class="card study-card hidden" id="studyCard">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">Study</span>
+              <h3 id="studyGerman">-</h3>
+              <p id="studyEnglish">-</p>
+            </div>
+            <button class="ghost-button" id="studyPlayButton" type="button">Pronounce</button>
+          </div>
+          <div class="pill-row" id="studyMeta"></div>
+          <div class="study-grid">
+            <div class="subcard">
+              <h4><span class="section-icon">◇</span> Examples</h4>
+              <ul id="studyExamples"></ul>
+            </div>
+            <div class="subcard" id="studyNotesCard">
+              <h4><span class="section-icon">◎</span> Notes</h4>
+              <ul id="studyNotes"></ul>
+            </div>
+          </div>
+          <div class="actions">
+            <label class="checkbox">
+              <input type="checkbox" id="understoodCheckbox" />
+              <span>I understand this word. Next time quiz me in English.</span>
+            </label>
+            <button class="primary-button success-button" id="studyContinueButton" type="button">Got It</button>
+          </div>
+        </section>
+
+        <section class="card quiz-card hidden" id="quizCard">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">Quiz</span>
+              <h3 id="quizEnglish">-</h3>
+              <p id="quizPrompt">Fill in the translation and tell me what kind of word this is.</p>
+            </div>
+            <button class="ghost-button" id="quizPlayButton" type="button">Pronounce</button>
+          </div>
+
+          <form id="quizForm" class="form-grid">
+            <label>
+              <span>German translation</span>
+              <input type="text" id="translationInput" autocomplete="off" />
+            </label>
+            <label>
+              <span>Article</span>
+              <select id="articleInput">
+                <option value="der">der</option>
+                <option value="die">die</option>
+                <option value="das">das</option>
+                <option value="">-</option>
+              </select>
+            </label>
+            <label>
+              <span>Word type</span>
+              <select id="wordTypeInput">
+                <option value="noun">noun</option>
+                <option value="verb">verb</option>
+                <option value="adjective">adjective</option>
+                <option value="adverb">adverb</option>
+                <option value="preposition">preposition</option>
+                <option value="pronoun">pronoun</option>
+                <option value="other">other</option>
+              </select>
+            </label>
+            <label class="full">
+              <span>Your sentence</span>
+              <textarea id="sentenceInput" rows="4"></textarea>
+            </label>
+            <label class="checkbox full">
+              <input type="checkbox" id="learnedCheckbox" />
+              <span>I have learned this word. Move on after this card.</span>
+            </label>
+            <div class="actions full">
+              <button class="ghost-button danger-button" type="button" id="skipButton">Missed</button>
+              <button class="primary-button success-button" type="submit" id="checkAnswerButton">Check Answer</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card result-card hidden" id="resultCard">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">Result</span>
+              <h3 id="resultLabel">-</h3>
+              <p id="resultSummary">-</p>
+            </div>
+            <button class="ghost-button" id="resultNextButton" type="button">Next Card</button>
+          </div>
+
+          <div class="result-grid">
+            <div class="subcard">
+              <h4><span class="section-icon">✓</span> Answer Check</h4>
+              <ul id="resultChecks"></ul>
+            </div>
+            <div class="subcard">
+              <h4><span class="section-icon">✎</span> Sentence Feedback</h4>
+              <ul id="resultSentence"></ul>
+            </div>
+            <div class="subcard wide" id="resultExamplesCard">
+              <h4><span class="section-icon">◇</span> Examples</h4>
+              <ul id="resultExamples"></ul>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="progress-dock">
+        <section class="progress-card progress-ring-card">
+          <div class="progress-ring">
+            <div>
+              <strong id="accuracyValue">0%</strong>
+              <span>accuracy</span>
+            </div>
+          </div>
+        </section>
+        <section class="progress-card progress-grid">
+          <div class="mini-card stat-success">
+            <span class="mini-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M8.5 12.2 10.8 14.5 15.6 9.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <div>
+              <span class="mini-label">Correct</span>
+              <strong id="correctValue">0</strong>
+            </div>
+          </div>
+          <div class="mini-card stat-danger">
+            <span class="mini-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <path d="m9 9 6 6M15 9l-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <div>
+              <span class="mini-label">Wrong</span>
+              <strong id="wrongValue">0</strong>
+            </div>
+          </div>
+          <div class="mini-card">
+            <span class="mini-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M8 5 6.5 19M17.5 5 16 19M4.5 9.5h15M3.5 14.5h15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <div>
+              <span class="mini-label">Questions</span>
+              <strong id="questionsValue">0</strong>
+            </div>
+          </div>
+          <div class="mini-card">
+            <span class="mini-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 5.5v13M12 5.5l-4 4M12 5.5l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <div>
+              <span class="mini-label">New Today</span>
+              <strong id="newTodayValue">0</strong>
+            </div>
+          </div>
+        </section>
+      </footer>
+    </div>
+
+    <div class="settings-overlay hidden" id="settingsOverlay"></div>
+    <aside class="settings-drawer hidden" id="settingsDrawer" aria-hidden="true">
+      <div class="drawer-header">
+        <div>
+          <span class="eyebrow">Training Settings</span>
+          <h3>Adjust Session</h3>
+        </div>
+        <button class="icon-button" id="closeSettingsButton" type="button" aria-label="Close settings">×</button>
+      </div>
+
+      <form id="settingsForm" class="settings-form">
+        <label>
+          <span class="stat-label">Level</span>
+          <select id="settingsLevel">
+            <option value="A1.1">A1.1</option>
+            <option value="A1.2">A1.2</option>
+            <option value="A2.1">A2.1</option>
+            <option value="A2.2">A2.2</option>
+            <option value="B1.1">B1.1</option>
+            <option value="B1.2">B1.2</option>
+          </select>
+        </label>
+        <label>
+          <span class="stat-label">Intensity</span>
+          <select id="settingsIntensity">
+            <option value="easy">easy</option>
+            <option value="medium">medium</option>
+            <option value="hard">hard</option>
+          </select>
+        </label>
+        <label>
+          <span class="stat-label">Mode</span>
+          <select id="settingsMode">
+            <option value="mixed">mixed</option>
+            <option value="study-only">study-only</option>
+            <option value="quiz-only">quiz-only</option>
+          </select>
+        </label>
+        <label>
+          <span class="stat-label">View</span>
+          <select id="settingsView">
+            <option value="basic">basic</option>
+            <option value="detail">detail</option>
+          </select>
+        </label>
+        <label>
+          <span class="stat-label">Daily Goal</span>
+          <input type="number" id="settingsGoal" min="0" max="500" step="1" />
+        </label>
+        <button class="primary-button" type="submit">Apply Settings</button>
+      </form>
+    </aside>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,41 +1,32 @@
 # Architecture
 
-## Module map
+## Overview
 
-- `main.py`: composition root, CLI config, scheduler loop, mode routing (`mixed/study-only/quiz-only`)
-- `engine/quiz_engine.py`: quiz creation + answer evaluation
-- `engine/spaced_repetition.py`: review interval decisions
-- `engine/grammar_checker.py`: noun metadata + POS/conjugations via `german-nouns` + `verbformen-cli`
-- `engine/sentence_generator.py`: sentence templates and validation
-- `services/translator.py`: EN -> DE translation adapter
-- `services/word_source.py`: CEFR curriculum + `wonderwords` generation + level-scoped cached files + weighted selection
-- `services/pronunciation.py`: text-to-speech playback
-- `services/progress_tracker.py`: JSON persistence for progress/stats
-- `services/ai_sentence_service.py`: optional OpenAI sentence generation/correction + level-aware word explanation + sentence structure analysis
-- `services/sentence_checker.py`: local LanguageTool grammar checks
-- `ui/quiz_window.py`: user input popup
-- `ui/result_window.py`: feedback popup
-- `ui/study_window.py`: study-first popup using table-based rendering (`basic` or `detail` view)
+The app now runs as a web application:
+
+- Python backend: FastAPI
+- Frontend: TypeScript source with browser-ready static assets
+- Core trainer logic: still lives in `engine/` and `services/`
+
+## Main parts
+
+- [main.py](/home/user/Workspace/german_trainer/main.py): CLI entrypoint and web server startup
+- [app.py](/home/user/Workspace/german_trainer/webapp/app.py): FastAPI app factory and routes
+- [service.py](/home/user/Workspace/german_trainer/webapp/service.py): session orchestration between API and quiz engine
+- [app.ts](/home/user/Workspace/german_trainer/webapp/src/app.ts): frontend state/render/event logic
+- `webapp/static/`: served HTML/CSS/JS assets
 
 ## Data flow
 
-1. Scheduler triggers a session.
-2. `WordSource` builds a CEFR-focused pool (`A1`..`C2`) and stores it in `data/generated_words_<level>.txt`, then picks using weighted selection (mistakes + due words).
-3. `TranslatorService` translates EN word to DE.
-4. `GrammarChecker` derives noun metadata from `german-nouns` and verb/adjective/adverb details from `verbformen-cli`.
-5. `ProgressTracker` checks learning stage (`study` or `quiz`) for the word.
-6. Mode routing:
-   - `study-only`: always `StudyWindow`
-   - `quiz-only`: always `QuizWindow`
-   - `mixed`: stage-based `study -> quiz`
-7. `StudyWindow` shows full word details (including noun flexion/compound parsing and verbformen metadata) and can promote to `quiz`.
-8. `QuizWindow` collects translation/article/type/sentence.
-9. `QuizEngine.evaluate()` checks answer correctness, optionally requests AI sentence translation/structure notes, and updates spaced repetition/history.
-10. `ResultWindow` displays expected answer and examples.
-11. `rich` prints current stats in terminal.
+1. Browser loads the static frontend from FastAPI.
+2. Frontend polls `/api/session` for countdown, active card, and stats.
+3. Backend creates study/quiz cards through `QuizEngine`.
+4. Frontend submits study and quiz actions back to the API.
+5. Backend updates spaced repetition, progress, metadata cache, and result feedback.
 
-## Extension points
+## Notes
 
-- Add a new exercise mode by extending `focus_mode` behavior in `QuizEngine`.
-- Add API providers by introducing new service adapters in `services/` and injecting into `QuizEngine`.
-- Swap persistence by replacing `ProgressTracker` with a DB-backed implementation using the same public methods.
+- Study/quiz timing is now session-driven in the backend instead of tkinter popup scheduling.
+- AI-backed word profiles and sentence feedback are reused through the existing Python services.
+- `storage/word_meta.json` remains the main local cache for reusable AI word data.
+
