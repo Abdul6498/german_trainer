@@ -169,12 +169,11 @@ class TrainerWebService:
                 return self.get_session()
 
             if bool(submission.get("learned", False)):
-                self.engine.mark_learned(self._current_quiz.english_word)
-                self._latest_result = {
-                    "outcome": "learned",
-                    "message": f"Marked {self._current_quiz.english_word} as learned.",
-                }
-                self._clear_current()
+                quiz = self._current_quiz
+                self.engine.mark_learned(quiz.english_word)
+                self._latest_result = self._serialize_learned_result(quiz)
+                self._current_stage = "result"
+                self._clear_current(schedule_next=False)
                 return self.get_session()
 
             result = self.engine.evaluate(
@@ -290,3 +289,27 @@ class TrainerWebService:
         payload["quiz"] = _model_to_dict(TrainerWebService._serialize_quiz(quiz))
         payload["result_label"] = "Correct!" if result.is_correct else "Not quite"
         return payload
+
+    @staticmethod
+    def _serialize_learned_result(quiz: QuizItem) -> dict[str, object]:
+        quiz_payload = _model_to_dict(TrainerWebService._serialize_quiz(quiz))
+        article = quiz.noun_info.article if quiz.word_type == "noun" else "-"
+        return {
+            "quiz": quiz_payload,
+            "result_label": "Marked Learned",
+            "is_correct": True,
+            "expected_translation": quiz.german_word,
+            "expected_type": quiz.word_type,
+            "expected_article": article,
+            "translation_correct": True,
+            "article_correct": True,
+            "type_correct": True,
+            "sentence_corrected": "",
+            "sentence_translation_en": "",
+            "sentence_structure": "",
+            "sentence_structure_points": [
+                f"{quiz.english_word} is now marked as learned and will move into review-based repetition.",
+            ],
+            "sentence_issues": [],
+            "examples": quiz.examples,
+        }
