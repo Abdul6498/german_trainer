@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from argparse import Namespace
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from services.pronunciation import PronunciationService
 from webapp.schemas import QuizSubmissionPayload, SettingsPayload, StudySubmissionPayload
 from webapp.service import TrainerWebService
 
@@ -23,6 +26,7 @@ def _payload_to_dict(payload: object) -> dict[str, object]:
 
 def create_app(root_dir: Path, args: Namespace) -> FastAPI:
     service = TrainerWebService(root_dir, args)
+    pronunciation = PronunciationService()
     app = FastAPI(title="German Trainer", version="2.0.0")
     static_dir = root_dir / "webapp" / "static"
 
@@ -54,6 +58,15 @@ def create_app(root_dir: Path, args: Namespace) -> FastAPI:
             mode=payload.mode,
             view=payload.view,
             daily_goal_words=payload.daily_goal_words,
+        )
+
+    @app.get("/api/pronunciation")
+    def pronunciation_audio(text: str):
+        audio_bytes = pronunciation.synthesize_bytes(text)
+        return StreamingResponse(
+            BytesIO(audio_bytes),
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/")

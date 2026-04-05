@@ -36,6 +36,7 @@ class TrainerWebService:
     def __init__(self, root_dir: Path, args: Namespace) -> None:
         self.root_dir = root_dir
         self.args = args
+        self._state_lock = threading.RLock()
         self._current_quiz: QuizItem | None = None
         self._prefetched_quiz: QuizItem | None = None
         self._current_stage: str = "idle"
@@ -57,7 +58,15 @@ class TrainerWebService:
             model=self.args.openai_model,
             enabled=self.args.translation_source == "ai",
         )
-        self.translator = ai_translator if self.args.translation_source == "ai" else default_translator
+        if self.args.translation_source == "ai":
+            if not ai_translator.available:
+                raise RuntimeError(
+                    "AI translation requested but unavailable. "
+                    f"{ai_translator.init_error or 'Check OPENAI_API_KEY and OpenAI package installation.'}"
+                )
+            self.translator = ai_translator
+        else:
+            self.translator = default_translator
 
         grammar_checker = GrammarChecker()
         sentence_generator = SentenceGenerator()
@@ -66,12 +75,22 @@ class TrainerWebService:
             enabled=self.args.word_source == "ai",
             level=self.args.level,
         )
+        if self.args.word_source == "ai" and not ai_word_service.available:
+            raise RuntimeError(
+                "AI word source requested but unavailable. "
+                f"{ai_word_service.init_error or 'Check OPENAI_API_KEY and OpenAI package installation.'}"
+            )
         self.ai_sentence_service = AISentenceService(
             model=self.args.openai_model,
             enabled=self.args.sentence_source == "ai",
             style_level=self.args.level,
             notes_mode=self.args.ai_notes,
         )
+        if self.args.sentence_source == "ai" and not self.ai_sentence_service.available:
+            raise RuntimeError(
+                "AI sentence service requested but unavailable. "
+                f"{self.ai_sentence_service.init_error or 'Check OPENAI_API_KEY and OpenAI package installation.'}"
+            )
         sentence_checker = SentenceChecker(language="de-DE") if self.args.sentence_source != "ai" else None
         word_source = WordSource(
             self.root_dir / "data",
@@ -95,21 +114,22 @@ class TrainerWebService:
         )
 
     def get_session(self) -> SessionPayload:
-        self._activate_due_card()
-        return SessionPayload(
-            stage=self._current_stage if self._current_quiz is not None or self._current_stage == "result" else "idle",
-            interval_minutes=self.args.interval_minutes,
-            next_due_in_seconds=max(0, int((self._next_due_at - datetime.now()).total_seconds())),
-            daily_goal_words=self.args.daily_goal_words,
-            srs_intensity=self.args.srs_intensity,
-            level=self.args.level,
-            new_words_today=self.progress_tracker.new_words_today(),
-            mode=self.args.mode,
-            view=self.args.view,
-            quiz=self._serialize_quiz(self._current_quiz) if self._current_quiz is not None else None,
-            result=self._latest_result,
-            stats=StatsPayload(**self.progress_tracker.stats()),
-        )
+        with self._state_lock:
+            self._activate_due_card()
+            return SessionPayload(
+                stage=self._current_stage if self._current_quiz is not None or self._current_stage == "result" else "idle",
+                interval_minutes=self.args.interval_minutes,
+                next_due_in_seconds=max(0, int((self._next_due_at - datetime.now()).total_seconds())),
+                daily_goal_words=self.args.daily_goal_words,
+                srs_intensity=self.args.srs_intensity,
+                level=self.args.level,
+                new_words_today=self.progress_tracker.new_words_today(),
+                mode=self.args.mode,
+                view=self.args.view,
+                quiz=self._serialize_quiz(self._current_quiz) if self._current_quiz is not None else None,
+                result=self._latest_result,
+                stats=StatsPayload(**self.progress_tracker.stats()),
+            )
 
     def update_settings(
         self,
@@ -119,65 +139,70 @@ class TrainerWebService:
         view: str,
         daily_goal_words: int,
     ) -> SessionPayload:
-        self.args.level = level
-        self.args.srs_intensity = srs_intensity
-        self.args.mode = mode
-        self.args.view = view
-        self.args.daily_goal_words = daily_goal_words
-        self._current_quiz = None
-        self._prefetched_quiz = None
-        self._latest_result = None
-        self._current_stage = "idle"
-        self._next_due_at = datetime.now()
-        self._build_runtime()
-        self._schedule_prefetch_if_needed()
-        return self.get_session()
+        with self._state_lock:
+            self.args.level = level
+            self.args.srs_intensity = srs_intensity
+            self.args.mode = mode
+            self.args.view = view
+            self.args.daily_goal_words = daily_goal_words
+            self._current_quiz = None
+            self._prefetched_quiz = None
+            self._latest_result = None
+            self._current_stage = "idle"
+            self._next_due_at = datetime.now()
+            self._build_runtime()
+            self._schedule_prefetch_if_needed()
+            return self.get_session()
 
     def submit_study(self, understood: bool) -> SessionPayload:
-        if self._current_quiz is None:
-            return self.get_session()
-        if understood:
-            self.engine.mark_understood(self._current_quiz.english_word)
-        self._clear_current()
-        return self.get_session()
-
-    def submit_quiz(self, submission: dict[str, object]) -> SessionPayload:
-        if self._current_quiz is None:
-            return self.get_session()
-
-        if bool(submission.get("learned", False)):
-            self.engine.mark_learned(self._current_quiz.english_word)
-            self._latest_result = {
-                "outcome": "learned",
-                "message": f"Marked {self._current_quiz.english_word} as learned.",
-            }
+        with self._state_lock:
+            if self._current_quiz is None:
+                return self.get_session()
+            if understood:
+                self.engine.mark_understood(self._current_quiz.english_word)
             self._clear_current()
             return self.get_session()
 
-        result = self.engine.evaluate(
-            quiz=self._current_quiz,
-            user_translation=str(submission.get("translation", "")),
-            user_article=str(submission.get("article", "")),
-            user_word_type=str(submission.get("word_type", "")),
-            user_sentence=str(submission.get("sentence", "")),
-            skipped=bool(submission.get("skipped", False)),
-        )
-        self._latest_result = self._serialize_result(self._current_quiz, result)
-        self._current_stage = "result"
-        self._clear_current(schedule_next=False)
-        return self.get_session()
+    def submit_quiz(self, submission: dict[str, object]) -> SessionPayload:
+        with self._state_lock:
+            if self._current_quiz is None:
+                return self.get_session()
+
+            if bool(submission.get("learned", False)):
+                self.engine.mark_learned(self._current_quiz.english_word)
+                self._latest_result = {
+                    "outcome": "learned",
+                    "message": f"Marked {self._current_quiz.english_word} as learned.",
+                }
+                self._clear_current()
+                return self.get_session()
+
+            result = self.engine.evaluate(
+                quiz=self._current_quiz,
+                user_translation=str(submission.get("translation", "")),
+                user_article=str(submission.get("article", "")),
+                user_word_type=str(submission.get("word_type", "")),
+                user_sentence=str(submission.get("sentence", "")),
+                skipped=bool(submission.get("skipped", False)),
+            )
+            self._latest_result = self._serialize_result(self._current_quiz, result)
+            self._current_stage = "result"
+            self._clear_current(schedule_next=False)
+            return self.get_session()
 
     def next_after_result(self) -> SessionPayload:
-        self._latest_result = None
-        self._current_stage = "idle"
-        self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
-        self._schedule_prefetch_if_needed()
-        return self.get_session()
+        with self._state_lock:
+            self._latest_result = None
+            self._current_stage = "idle"
+            self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
+            self._schedule_prefetch_if_needed()
+            return self.get_session()
 
     def trigger_now(self) -> SessionPayload:
-        self._latest_result = None
-        self._next_due_at = datetime.now()
-        return self.get_session()
+        with self._state_lock:
+            self._latest_result = None
+            self._next_due_at = datetime.now()
+            return self.get_session()
 
     def _should_prefetch(self) -> bool:
         return self.args.mode != "quiz-only"
@@ -199,7 +224,7 @@ class TrainerWebService:
         except Exception:
             return
 
-        with self._prefetch_lock:
+        with self._state_lock, self._prefetch_lock:
             if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
                 self._prefetched_quiz = quiz
 

@@ -3,6 +3,7 @@ german-nouns
 verbformen-cli
 schedule
 gtts
+edge-tts
 playsound==1.2.2
 rich
 wonderwords

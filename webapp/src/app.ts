@@ -57,13 +57,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-function speakGerman(text: string): void {
-  if (!("speechSynthesis" in window)) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "de-DE";
-  utterance.rate = 0.92;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+async function speakGerman(text: string): Promise<void> {
+  if (!text.trim()) return;
+  const audio = new Audio(`/api/pronunciation?text=${encodeURIComponent(text)}`);
+  audio.preload = "auto";
+  await audio.play();
 }
 
 function setVisible(id: string, visible: boolean): void {
@@ -312,8 +310,8 @@ function bindEvents(): void {
     render();
   });
 
-  document.getElementById("studyPlayButton")?.addEventListener("click", () => speakGerman(currentSpokenWord()));
-  document.getElementById("quizPlayButton")?.addEventListener("click", () => speakGerman(currentSpokenWord()));
+  document.getElementById("studyPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("quizPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {
     const understood = (document.getElementById("understoodCheckbox") as HTMLInputElement).checked;

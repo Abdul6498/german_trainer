@@ -15,13 +15,11 @@ async function request(url, options) {
   return await response.json();
 }
 
-function speakGerman(text) {
-  if (!("speechSynthesis" in window) || !text) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "de-DE";
-  utterance.rate = 0.92;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+async function speakGerman(text) {
+  if (!text || !text.trim()) return;
+  const audio = new Audio(`/api/pronunciation?text=${encodeURIComponent(text)}`);
+  audio.preload = "auto";
+  await audio.play();
 }
 
 function setVisible(id, visible) {
@@ -268,8 +266,8 @@ function bindEvents() {
     render();
   });
 
-  document.getElementById("studyPlayButton")?.addEventListener("click", () => speakGerman(currentSpokenWord()));
-  document.getElementById("quizPlayButton")?.addEventListener("click", () => speakGerman(currentSpokenWord()));
+  document.getElementById("studyPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("quizPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {
     const understood = document.getElementById("understoodCheckbox").checked;
