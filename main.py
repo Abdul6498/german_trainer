@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import uvicorn
@@ -11,9 +12,16 @@ from rich.console import Console
 from webapp.app import create_app
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="German Trainer Web App")
-    parser.add_argument("--interval-minutes", type=int, default=5, help="Minutes between trainer prompts.")
+    parser.add_argument("--interval-minutes", type=int, default=_env_int("INTERVAL_MINUTES", 5), help="Minutes between trainer prompts.")
     parser.add_argument(
         "--level",
         default="A1.1",
@@ -59,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--daily-goal-words",
         type=int,
-        default=60,
+        default=_env_int("DAILY_GOAL_WORDS", 60),
         help="Daily target for new words before repetitions are preferred.",
     )
     parser.add_argument(
@@ -68,8 +76,8 @@ def parse_args() -> argparse.Namespace:
         default="short",
         help="AI word explanation note density.",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Bind host for the web server.")
-    parser.add_argument("--port", type=int, default=8000, help="Bind port for the web server.")
+    parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"), help="Bind host for the web server.")
+    parser.add_argument("--port", type=int, default=_env_int("PORT", 8000), help="Bind port for the web server.")
     return parser.parse_args()
 
 
@@ -88,4 +96,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

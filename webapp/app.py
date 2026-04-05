@@ -34,6 +34,10 @@ def create_app(root_dir: Path, args: Namespace) -> FastAPI:
     def get_session():
         return service.get_session()
 
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
     @app.post("/api/study")
     def submit_study(payload: StudySubmissionPayload):
         return service.submit_study(payload.understood)

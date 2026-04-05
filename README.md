@@ -41,3 +41,55 @@ You can now also change `level`, `intensity`, and `daily goal` directly inside t
 - In AI mode, study cards and quiz feedback come from OpenAI-backed services.
 - Sentence feedback is shown in results, but sentence quality does not affect quiz scoring.
 - Runtime/local data stays in `storage/` and generated caches stay under `data/`.
+
+## Fly.io Deploy
+
+This project is ready to deploy on Fly.io with the included [Dockerfile](/home/user/Workspace/german_trainer/Dockerfile) and [fly.toml](/home/user/Workspace/german_trainer/fly.toml).
+
+### 1. Install Fly CLI
+
+```bash
+curl -L https://fly.io/install.sh | sh
+```
+
+### 2. Authenticate
+
+```bash
+fly auth login
+```
+
+### 3. Review the app name
+
+The default app name in [fly.toml](/home/user/Workspace/german_trainer/fly.toml) is `abdul-german-trainer`. If Fly says it is already taken, change the `app = "..."` value to something unique.
+
+### 4. Create the app and set secrets
+
+```bash
+fly launch --no-deploy
+fly secrets set OPENAI_API_KEY=your_key_here
+```
+
+Optional secrets if you want different defaults:
+
+```bash
+fly secrets set INTERVAL_MINUTES=5 DAILY_GOAL_WORDS=60
+```
+
+### 5. Deploy
+
+```bash
+fly deploy
+```
+
+### 6. Open the app
+
+```bash
+fly open
+```
+
+### Notes for Fly
+
+- The service listens on `0.0.0.0:8080` inside the container.
+- Health checks use `/healthz`.
+- By default the app will sleep when idle on Fly free/low-cost settings and start again on demand.
+- Files under `storage/` and generated caches under `data/` are ephemeral inside the container. If you want persistent progress/history on Fly, we should add a Fly volume or move state to a database/object store.
