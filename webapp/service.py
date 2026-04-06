@@ -45,6 +45,7 @@ class TrainerWebService:
         self._prefetch_lock = threading.Lock()
         self._quiz_build_lock = threading.Lock()
         self._prefetch_in_flight = False
+        self._prefetch_generation = 0
         self._prefetch_thread: threading.Thread | None = None
         self._build_runtime()
         self._schedule_prefetch_if_needed()
@@ -122,6 +123,7 @@ class TrainerWebService:
                 stage=self._current_stage if self._current_quiz is not None or self._current_stage == "result" else "idle",
                 interval_minutes=self.args.interval_minutes,
                 next_due_in_seconds=max(0, int((self._next_due_at - datetime.now()).total_seconds())),
+                pace=self.args.pace,
                 daily_goal_words=self.args.daily_goal_words,
                 srs_intensity=self.args.srs_intensity,
                 level=self.args.level,
@@ -139,6 +141,7 @@ class TrainerWebService:
         srs_intensity: str,
         mode: str,
         view: str,
+        pace: str,
         daily_goal_words: int,
     ) -> SessionPayload:
         with self._state_lock:
@@ -146,7 +149,9 @@ class TrainerWebService:
             self.args.srs_intensity = srs_intensity
             self.args.mode = mode
             self.args.view = view
+            self.args.pace = pace
             self.args.daily_goal_words = daily_goal_words
+            self._prefetch_generation += 1
             self._current_quiz = None
             self._prefetched_quiz = None
             self._latest_result = None
@@ -195,7 +200,10 @@ class TrainerWebService:
         with self._state_lock:
             self._latest_result = None
             self._current_stage = "idle"
-            self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
+            if self.args.pace == "continuous":
+                self._next_due_at = datetime.now()
+            else:
+                self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
             self._schedule_prefetch_if_needed()
             return self.get_session()
 
@@ -227,6 +235,7 @@ class TrainerWebService:
             if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None or not self._should_prefetch():
                 self._prefetch_in_flight = False
                 return
+            generation = self._prefetch_generation
 
         try:
             with self._quiz_build_lock:
@@ -244,7 +253,12 @@ class TrainerWebService:
 
         with self._state_lock:
             self._prefetch_in_flight = False
-            should_discard = self._current_quiz is not None or self._latest_result is not None or not self._should_prefetch()
+            should_discard = (
+                generation != self._prefetch_generation
+                or self._current_quiz is not None
+                or self._latest_result is not None
+                or not self._should_prefetch()
+            )
 
         if published and should_discard:
             with self._prefetch_lock:
@@ -292,7 +306,10 @@ class TrainerWebService:
         self._current_quiz = None
         if schedule_next:
             self._current_stage = "idle"
-            self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
+            if self.args.pace == "continuous":
+                self._next_due_at = datetime.now()
+            else:
+                self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
             self._schedule_prefetch_if_needed()
 
     @staticmethod

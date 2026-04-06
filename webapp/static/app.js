@@ -91,7 +91,7 @@ function render() {
 
   setText("modeValue", session.mode);
   setText("levelValue", session.level || (session.quiz && session.quiz.cefr_level) || "-");
-  setText("countdownValue", formatCountdown(session.next_due_in_seconds));
+  setText("countdownValue", session.pace === "continuous" ? "instant" : formatCountdown(session.next_due_in_seconds));
   setText("goalValue", `${session.new_words_today}/${session.daily_goal_words}`);
   setText("accuracyValue", `${Number(session.stats.accuracy || 0).toFixed(0)}%`);
   setText("questionsValue", String(session.stats.total_questions || 0));
@@ -105,6 +105,7 @@ function render() {
     document.getElementById("settingsIntensity").value = session.srs_intensity;
     document.getElementById("settingsMode").value = session.mode;
     document.getElementById("settingsView").value = session.view;
+    document.getElementById("settingsPace").value = session.pace;
     document.getElementById("settingsGoal").value = String(session.daily_goal_words);
   }
 
@@ -113,8 +114,13 @@ function render() {
   setVisible("resultCard", session.stage === "result");
 
   if (session.stage === "idle") {
-    setText("heroTitle", "Waiting for the next card");
-    setText("heroCopy", "Stay here and the next prompt will slide into place automatically.");
+    setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
+    setText(
+      "heroCopy",
+      session.pace === "continuous"
+        ? "Continuous mode is on. Finish a card and the next one appears immediately."
+        : "Stay here and the next prompt will slide into place automatically."
+    );
   }
 
   if (session.stage === "study" && session.quiz) {
@@ -282,6 +288,7 @@ function bindEvents() {
         srs_intensity: document.getElementById("settingsIntensity").value,
         mode: document.getElementById("settingsMode").value,
         view: document.getElementById("settingsView").value,
+        pace: document.getElementById("settingsPace").value,
         daily_goal_words: Number(document.getElementById("settingsGoal").value || 0),
       }),
     });

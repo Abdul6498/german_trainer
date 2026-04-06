@@ -61,6 +61,7 @@ def create_app(root_dir: Path, args: Namespace) -> FastAPI:
             srs_intensity=payload.srs_intensity,
             mode=payload.mode,
             view=payload.view,
+            pace=payload.pace,
             daily_goal_words=payload.daily_goal_words,
         )
 

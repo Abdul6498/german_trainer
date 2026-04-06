@@ -38,6 +38,7 @@ class SessionPayload(BaseModel):
     stage: Literal["idle", "study", "quiz", "result"]
     interval_minutes: int
     next_due_in_seconds: int
+    pace: Literal["timed", "continuous"]
     daily_goal_words: int
     srs_intensity: str
     level: str
@@ -67,4 +68,5 @@ class SettingsPayload(BaseModel):
     srs_intensity: Literal["easy", "medium", "hard"]
     mode: Literal["mixed", "study-only", "quiz-only"]
     view: Literal["basic", "detail"]
+    pace: Literal["timed", "continuous"]
     daily_goal_words: int = Field(ge=0, le=500)

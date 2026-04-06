@@ -4,6 +4,7 @@ interface SessionResponse {
   stage: SessionStage;
   interval_minutes: number;
   next_due_in_seconds: number;
+  pace: "timed" | "continuous";
   daily_goal_words: number;
   srs_intensity: string;
   level: string;
@@ -132,7 +133,7 @@ function render(): void {
 
   setText("modeValue", session.mode);
   setText("levelValue", session.level || session.quiz?.cefr_level || "-");
-  setText("countdownValue", formatCountdown(session.next_due_in_seconds));
+  setText("countdownValue", session.pace === "continuous" ? "instant" : formatCountdown(session.next_due_in_seconds));
   setText("goalValue", `${session.new_words_today}/${session.daily_goal_words}`);
   setText("accuracyValue", `${session.stats.accuracy.toFixed(0)}%`);
   setText("questionsValue", String(session.stats.total_questions));
@@ -146,6 +147,7 @@ function render(): void {
     (document.getElementById("settingsIntensity") as HTMLSelectElement).value = session.srs_intensity;
     (document.getElementById("settingsMode") as HTMLSelectElement).value = session.mode;
     (document.getElementById("settingsView") as HTMLSelectElement).value = session.view;
+    (document.getElementById("settingsPace") as HTMLSelectElement).value = session.pace;
     (document.getElementById("settingsGoal") as HTMLInputElement).value = String(session.daily_goal_words);
   }
 
@@ -154,8 +156,13 @@ function render(): void {
   setVisible("resultCard", session.stage === "result");
 
   if (session.stage === "idle") {
-    setText("heroTitle", "Waiting for the next card");
-    setText("heroCopy", "Stay here and the next prompt will slide into place automatically.");
+    setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
+    setText(
+      "heroCopy",
+      session.pace === "continuous"
+        ? "Continuous mode is on. Finish a card and the next one appears immediately."
+        : "Stay here and the next prompt will slide into place automatically.",
+    );
   }
 
   if (session.stage === "study" && session.quiz) {
@@ -326,6 +333,7 @@ function bindEvents(): void {
         srs_intensity: (document.getElementById("settingsIntensity") as HTMLSelectElement).value,
         mode: (document.getElementById("settingsMode") as HTMLSelectElement).value,
         view: (document.getElementById("settingsView") as HTMLSelectElement).value,
+        pace: (document.getElementById("settingsPace") as HTMLSelectElement).value,
         daily_goal_words: Number((document.getElementById("settingsGoal") as HTMLInputElement).value || 0),
       }),
     });

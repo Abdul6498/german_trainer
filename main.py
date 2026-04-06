@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
         help="Initial frontend density preference.",
     )
     parser.add_argument(
+        "--pace",
+        choices=["timed", "continuous"],
+        default="timed",
+        help="Timed mode waits between cards; continuous mode moves to the next card immediately.",
+    )
+    parser.add_argument(
         "--sentence-source",
         choices=["ai"],
         default="ai",
@@ -89,7 +95,7 @@ def main() -> None:
 
     console.print(
         f"Starting German Trainer Web App on http://{args.host}:{args.port} "
-        f"(level={args.level}, mode={args.mode}, interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
+        f"(level={args.level}, mode={args.mode}, pace={args.pace}, interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
