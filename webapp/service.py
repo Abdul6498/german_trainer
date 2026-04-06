@@ -236,10 +236,20 @@ class TrainerWebService:
                 self._prefetch_in_flight = False
             return
 
-        with self._state_lock, self._prefetch_lock:
-            self._prefetch_in_flight = False
-            if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
+        published = False
+        with self._prefetch_lock:
+            if self._prefetched_quiz is None:
                 self._prefetched_quiz = quiz
+                published = True
+
+        with self._state_lock:
+            self._prefetch_in_flight = False
+            should_discard = self._current_quiz is not None or self._latest_result is not None or not self._should_prefetch()
+
+        if published and should_discard:
+            with self._prefetch_lock:
+                if self._prefetched_quiz is quiz:
+                    self._prefetched_quiz = None
 
     def _activate_due_card(self) -> None:
         if self._latest_result is not None:
