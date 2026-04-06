@@ -208,11 +208,11 @@ async function triggerDueCard() {
   try {
     state.session = await request("/api/trigger", { method: "POST" });
     render();
+  } catch (error) {
+    console.error("Failed to trigger next card", error);
   } finally {
     refreshInFlight = false;
-    if (state.session?.stage !== "idle") {
-      autoTriggerPending = false;
-    }
+    autoTriggerPending = false;
   }
 }
 

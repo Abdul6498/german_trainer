@@ -43,6 +43,8 @@ class TrainerWebService:
         self._latest_result: dict[str, object] | None = None
         self._next_due_at = datetime.now()
         self._prefetch_lock = threading.Lock()
+        self._quiz_build_lock = threading.Lock()
+        self._prefetch_in_flight = False
         self._prefetch_thread: threading.Thread | None = None
         self._build_runtime()
         self._schedule_prefetch_if_needed()
@@ -211,24 +213,33 @@ class TrainerWebService:
             return
         if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None:
             return
+        if self._prefetch_in_flight:
+            return
         if self._prefetch_thread is not None and self._prefetch_thread.is_alive():
             return
 
+        self._prefetch_in_flight = True
         self._prefetch_thread = threading.Thread(target=self._prefetch_next_quiz, daemon=True)
         self._prefetch_thread.start()
 
     def _prefetch_next_quiz(self) -> None:
         with self._state_lock:
             if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None or not self._should_prefetch():
-                return
-            try:
-                quiz = self.engine.create_quiz(mark_presented=False)
-            except Exception:
+                self._prefetch_in_flight = False
                 return
 
-            with self._prefetch_lock:
-                if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
-                    self._prefetched_quiz = quiz
+        try:
+            with self._quiz_build_lock:
+                quiz = self.engine.create_quiz(mark_presented=False)
+        except Exception:
+            with self._state_lock:
+                self._prefetch_in_flight = False
+            return
+
+        with self._state_lock, self._prefetch_lock:
+            self._prefetch_in_flight = False
+            if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
+                self._prefetched_quiz = quiz
 
     def _activate_due_card(self) -> None:
         if self._latest_result is not None:
@@ -246,7 +257,8 @@ class TrainerWebService:
                 self._prefetched_quiz = None
 
         if quiz is None:
-            quiz = self.engine.create_quiz()
+            with self._quiz_build_lock:
+                quiz = self.engine.create_quiz()
         else:
             self.progress_tracker.mark_word_presented(quiz.english_word)
 
