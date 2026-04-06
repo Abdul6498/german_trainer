@@ -258,10 +258,18 @@ class TrainerWebService:
 
         if quiz is None:
             with self._quiz_build_lock:
-                quiz = self.engine.create_quiz()
+                used_prefetched_quiz = False
+                with self._prefetch_lock:
+                    if self._prefetched_quiz is not None:
+                        quiz = self._prefetched_quiz
+                        self._prefetched_quiz = None
+                        used_prefetched_quiz = True
+                if quiz is None:
+                    quiz = self.engine.create_quiz()
+                elif used_prefetched_quiz:
+                    self.progress_tracker.mark_word_presented(quiz.english_word)
         else:
             self.progress_tracker.mark_word_presented(quiz.english_word)
-
         stage = self.progress_tracker.get_learning_stage(quiz.english_word)
         if self.args.mode == "quiz-only" and stage == "study":
             self.engine.mark_understood(quiz.english_word)
