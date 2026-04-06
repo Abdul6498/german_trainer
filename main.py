@@ -40,6 +40,12 @@ def parse_args() -> argparse.Namespace:
         help="Learning flow mode.",
     )
     parser.add_argument(
+        "--practice-mode",
+        choices=["learn-new", "repeat-practice"],
+        default="learn-new",
+        help="Choose whether to introduce new words or practice already-understood words.",
+    )
+    parser.add_argument(
         "--view",
         choices=["basic", "detail"],
         default="basic",
@@ -95,7 +101,8 @@ def main() -> None:
 
     console.print(
         f"Starting German Trainer Web App on http://{args.host}:{args.port} "
-        f"(level={args.level}, mode={args.mode}, pace={args.pace}, interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
+        f"(level={args.level}, mode={args.mode}, practice_mode={args.practice_mode}, "
+        f"pace={args.pace}, interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

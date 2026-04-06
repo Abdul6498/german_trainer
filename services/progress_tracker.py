@@ -102,6 +102,19 @@ class ProgressTracker:
         data = self._load_json(self.word_meta_path, fallback={})
         return dict(data.get(english_word, {}))
 
+    def find_english_for_german(self, german_word: str) -> str:
+        target = german_word.strip().casefold()
+        if not target:
+            return ""
+        data = self._load_json(self.word_meta_path, fallback={})
+        for english_word, record in data.items():
+            if not isinstance(record, dict):
+                continue
+            cached_german = str(record.get("german_word", "")).strip().casefold()
+            if cached_german == target:
+                return str(english_word).strip()
+        return ""
+
     def update_word_meta(self, english_word: str, record: dict[str, object]) -> None:
         data = self._load_json(self.word_meta_path, fallback={})
         existing = dict(data.get(english_word, {}))

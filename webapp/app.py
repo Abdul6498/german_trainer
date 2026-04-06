@@ -60,6 +60,7 @@ def create_app(root_dir: Path, args: Namespace) -> FastAPI:
             level=payload.level,
             srs_intensity=payload.srs_intensity,
             mode=payload.mode,
+            practice_mode=payload.practice_mode,
             view=payload.view,
             pace=payload.pace,
             daily_goal_words=payload.daily_goal_words,

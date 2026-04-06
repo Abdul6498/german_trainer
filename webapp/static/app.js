@@ -85,11 +85,24 @@ function formatCountdown(seconds) {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
+function formatSettingLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const labels = {
+    "mixed": "Mixed",
+    "study-only": "Study Only",
+    "quiz-only": "Quiz Only",
+    "learn-new": "New",
+    "repeat-practice": "Review",
+  };
+  return labels[normalized] || String(value || "").replace(/-/g, " ");
+}
+
 function render() {
   const session = state.session;
   if (!session) return;
 
-  setText("modeValue", session.mode);
+  setText("modeValue", formatSettingLabel(session.mode));
+  setText("practiceModeValue", formatSettingLabel(session.practice_mode));
   setText("levelValue", session.level || (session.quiz && session.quiz.cefr_level) || "-");
   setText("countdownValue", session.pace === "continuous" ? "instant" : formatCountdown(session.next_due_in_seconds));
   setText("goalValue", `${session.new_words_today}/${session.daily_goal_words}`);
@@ -104,6 +117,7 @@ function render() {
     document.getElementById("settingsLevel").value = session.level;
     document.getElementById("settingsIntensity").value = session.srs_intensity;
     document.getElementById("settingsMode").value = session.mode;
+    document.getElementById("settingsPracticeMode").value = session.practice_mode;
     document.getElementById("settingsView").value = session.view;
     document.getElementById("settingsPace").value = session.pace;
     document.getElementById("settingsGoal").value = String(session.daily_goal_words);
@@ -117,9 +131,10 @@ function render() {
     setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
     setText(
       "heroCopy",
-      session.pace === "continuous"
-        ? "Continuous mode is on. Finish a card and the next one appears immediately."
-        : "Stay here and the next prompt will slide into place automatically."
+      session.idle_message ||
+        (session.pace === "continuous"
+          ? "Continuous mode is on. Finish a card and the next one appears immediately."
+          : "Stay here and the next prompt will slide into place automatically.")
     );
   }
 
@@ -287,6 +302,7 @@ function bindEvents() {
         level: document.getElementById("settingsLevel").value,
         srs_intensity: document.getElementById("settingsIntensity").value,
         mode: document.getElementById("settingsMode").value,
+        practice_mode: document.getElementById("settingsPracticeMode").value,
         view: document.getElementById("settingsView").value,
         pace: document.getElementById("settingsPace").value,
         daily_goal_words: Number(document.getElementById("settingsGoal").value || 0),

@@ -99,6 +99,14 @@ body {
   font-weight: 800;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .brand-title,
 .hero h2,
 .card-header h3,
@@ -125,7 +133,7 @@ body {
 
 .overview-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -134,14 +142,28 @@ body {
   align-items: center;
   gap: 10px;
   min-height: 58px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   background: linear-gradient(180deg, #22232b 0%, #1a1b21 100%);
+}
+
+.mini-card > div {
+  min-width: 0;
 }
 
 .mini-card strong {
   display: block;
-  margin-top: 3px;
-  font-size: 1rem;
+  margin-top: 2px;
+  font-size: 0.92rem;
+  line-height: 1.1;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overview-strip .mini-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
 }
 
 .mini-icon {

@@ -44,7 +44,9 @@ class SessionPayload(BaseModel):
     level: str
     new_words_today: int
     mode: str
+    practice_mode: Literal["learn-new", "repeat-practice"]
     view: str
+    idle_message: str = ""
     quiz: QuizPayload | None = None
     result: dict[str, object] | None = None
     stats: StatsPayload
@@ -67,6 +69,7 @@ class SettingsPayload(BaseModel):
     level: str
     srs_intensity: Literal["easy", "medium", "hard"]
     mode: Literal["mixed", "study-only", "quiz-only"]
+    practice_mode: Literal["learn-new", "repeat-practice"]
     view: Literal["basic", "detail"]
     pace: Literal["timed", "continuous"]
     daily_goal_words: int = Field(ge=0, le=500)

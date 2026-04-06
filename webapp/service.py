@@ -47,6 +47,8 @@ class TrainerWebService:
         self._prefetch_in_flight = False
         self._prefetch_generation = 0
         self._prefetch_thread: threading.Thread | None = None
+        self._last_card_kind: str | None = None
+        self._idle_message = ""
         self._build_runtime()
         self._schedule_prefetch_if_needed()
 
@@ -129,7 +131,9 @@ class TrainerWebService:
                 level=self.args.level,
                 new_words_today=self.progress_tracker.new_words_today(),
                 mode=self.args.mode,
+                practice_mode=self.args.practice_mode,
                 view=self.args.view,
+                idle_message=self._idle_message,
                 quiz=self._serialize_quiz(self._current_quiz) if self._current_quiz is not None else None,
                 result=self._latest_result,
                 stats=StatsPayload(**self.progress_tracker.stats()),
@@ -140,6 +144,7 @@ class TrainerWebService:
         level: str,
         srs_intensity: str,
         mode: str,
+        practice_mode: str,
         view: str,
         pace: str,
         daily_goal_words: int,
@@ -148,6 +153,7 @@ class TrainerWebService:
             self.args.level = level
             self.args.srs_intensity = srs_intensity
             self.args.mode = mode
+            self.args.practice_mode = practice_mode
             self.args.view = view
             self.args.pace = pace
             self.args.daily_goal_words = daily_goal_words
@@ -156,6 +162,8 @@ class TrainerWebService:
             self._prefetched_quiz = None
             self._latest_result = None
             self._current_stage = "idle"
+            self._last_card_kind = None
+            self._idle_message = ""
             self._next_due_at = datetime.now()
             self._build_runtime()
             self._schedule_prefetch_if_needed()
@@ -167,6 +175,7 @@ class TrainerWebService:
                 return self.get_session()
             if understood:
                 self.engine.mark_understood(self._current_quiz.english_word)
+            self._idle_message = ""
             self._clear_current()
             return self.get_session()
 
@@ -180,6 +189,7 @@ class TrainerWebService:
                 self.engine.mark_learned(quiz.english_word)
                 self._latest_result = self._serialize_learned_result(quiz)
                 self._current_stage = "result"
+                self._idle_message = ""
                 self._clear_current(schedule_next=False)
                 return self.get_session()
 
@@ -193,6 +203,7 @@ class TrainerWebService:
             )
             self._latest_result = self._serialize_result(self._current_quiz, result)
             self._current_stage = "result"
+            self._idle_message = ""
             self._clear_current(schedule_next=False)
             return self.get_session()
 
@@ -200,6 +211,7 @@ class TrainerWebService:
         with self._state_lock:
             self._latest_result = None
             self._current_stage = "idle"
+            self._idle_message = ""
             if self.args.pace == "continuous":
                 self._next_due_at = datetime.now()
             else:
@@ -210,6 +222,7 @@ class TrainerWebService:
     def trigger_now(self) -> SessionPayload:
         with self._state_lock:
             self._latest_result = None
+            self._idle_message = ""
             self._next_due_at = datetime.now()
             return self.get_session()
 
@@ -218,6 +231,9 @@ class TrainerWebService:
 
     def _schedule_prefetch_if_needed(self) -> None:
         if not self._should_prefetch():
+            return
+        selection_mode, _display_stage = self._choose_card_plan()
+        if selection_mode != "study-new":
             return
         if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None:
             return
@@ -232,38 +248,43 @@ class TrainerWebService:
 
     def _prefetch_next_quiz(self) -> None:
         with self._state_lock:
-            if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None or not self._should_prefetch():
+            selection_mode, _display_stage = self._choose_card_plan()
+            if (
+                self._current_quiz is not None
+                or self._latest_result is not None
+                or self._prefetched_quiz is not None
+                or not self._should_prefetch()
+                or selection_mode != "study-new"
+            ):
                 self._prefetch_in_flight = False
                 return
             generation = self._prefetch_generation
 
         try:
             with self._quiz_build_lock:
-                quiz = self.engine.create_quiz(mark_presented=False)
+                quiz = self.engine.create_quiz(mark_presented=False, selection_mode=selection_mode)
         except Exception:
             with self._state_lock:
                 self._prefetch_in_flight = False
             return
 
-        published = False
+        with self._state_lock:
+            current_selection_mode, _display_stage = self._choose_card_plan()
+            can_publish = (
+                generation == self._prefetch_generation
+                and self._current_quiz is None
+                and self._latest_result is None
+                and self._should_prefetch()
+                and current_selection_mode == "study-new"
+            )
+            self._prefetch_in_flight = False
+
+        if not can_publish:
+            return
+
         with self._prefetch_lock:
             if self._prefetched_quiz is None:
                 self._prefetched_quiz = quiz
-                published = True
-
-        with self._state_lock:
-            self._prefetch_in_flight = False
-            should_discard = (
-                generation != self._prefetch_generation
-                or self._current_quiz is not None
-                or self._latest_result is not None
-                or not self._should_prefetch()
-            )
-
-        if published and should_discard:
-            with self._prefetch_lock:
-                if self._prefetched_quiz is quiz:
-                    self._prefetched_quiz = None
 
     def _activate_due_card(self) -> None:
         if self._latest_result is not None:
@@ -274,9 +295,18 @@ class TrainerWebService:
         if datetime.now() < self._next_due_at:
             return
 
+        selection_mode, display_stage = self._choose_card_plan()
+        if not selection_mode:
+            self._current_stage = "idle"
+            self._current_quiz = None
+            self._idle_message = "No quiz-ready words yet. Study a few words and mark them understood first."
+            return
+
+        self._idle_message = ""
+
         quiz: QuizItem | None = None
         with self._prefetch_lock:
-            if self._prefetched_quiz is not None:
+            if self._prefetched_quiz is not None and selection_mode == "study-new":
                 quiz = self._prefetched_quiz
                 self._prefetched_quiz = None
 
@@ -284,23 +314,20 @@ class TrainerWebService:
             with self._quiz_build_lock:
                 used_prefetched_quiz = False
                 with self._prefetch_lock:
-                    if self._prefetched_quiz is not None:
+                    if self._prefetched_quiz is not None and selection_mode == "study-new":
                         quiz = self._prefetched_quiz
                         self._prefetched_quiz = None
                         used_prefetched_quiz = True
                 if quiz is None:
-                    quiz = self.engine.create_quiz()
+                    quiz = self.engine.create_quiz(selection_mode=selection_mode)
                 elif used_prefetched_quiz:
                     self.progress_tracker.mark_word_presented(quiz.english_word)
         else:
             self.progress_tracker.mark_word_presented(quiz.english_word)
-        stage = self.progress_tracker.get_learning_stage(quiz.english_word)
-        if self.args.mode == "quiz-only" and stage == "study":
-            self.engine.mark_understood(quiz.english_word)
-            stage = "quiz"
 
         self._current_quiz = quiz
-        self._current_stage = "study" if self.args.mode == "study-only" or (self.args.mode == "mixed" and stage == "study") else "quiz"
+        self._current_stage = display_stage
+        self._last_card_kind = display_stage
 
     def _clear_current(self, schedule_next: bool = True) -> None:
         self._current_quiz = None
@@ -311,6 +338,25 @@ class TrainerWebService:
             else:
                 self._next_due_at = datetime.now() + timedelta(minutes=self.args.interval_minutes)
             self._schedule_prefetch_if_needed()
+
+    def _choose_card_plan(self) -> tuple[str, str]:
+        review_available = self.engine.has_quiz_ready_words()
+
+        if self.args.practice_mode == "repeat-practice":
+            if review_available:
+                if self.args.mode == "study-only":
+                    return ("quiz-review", "study")
+                return ("quiz-review", "quiz")
+            return ("study-new", "study") if self.args.mode != "quiz-only" else ("", "idle")
+
+        if self.args.mode == "study-only":
+            return ("study-new", "study")
+        if self.args.mode == "quiz-only":
+            return ("quiz-review", "quiz") if review_available else ("", "idle")
+
+        if review_available and self._last_card_kind != "quiz":
+            return ("quiz-review", "quiz")
+        return ("study-new", "study")
 
     @staticmethod
     def _serialize_quiz(quiz: QuizItem | None) -> QuizPayload | None:

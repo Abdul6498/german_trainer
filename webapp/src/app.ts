@@ -10,7 +10,9 @@ interface SessionResponse {
   level: string;
   new_words_today: number;
   mode: string;
+  practice_mode: "learn-new" | "repeat-practice";
   view: string;
+  idle_message: string;
   quiz: QuizPayload | null;
   result: Record<string, unknown> | null;
   stats: StatsPayload;
@@ -127,11 +129,24 @@ function formatCountdown(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function formatSettingLabel(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    "mixed": "Mixed",
+    "study-only": "Study Only",
+    "quiz-only": "Quiz Only",
+    "learn-new": "New",
+    "repeat-practice": "Review",
+  };
+  return labels[normalized] ?? value.replace(/-/g, " ");
+}
+
 function render(): void {
   const session = state.session;
   if (!session) return;
 
-  setText("modeValue", session.mode);
+  setText("modeValue", formatSettingLabel(session.mode));
+  setText("practiceModeValue", formatSettingLabel(session.practice_mode));
   setText("levelValue", session.level || session.quiz?.cefr_level || "-");
   setText("countdownValue", session.pace === "continuous" ? "instant" : formatCountdown(session.next_due_in_seconds));
   setText("goalValue", `${session.new_words_today}/${session.daily_goal_words}`);
@@ -146,6 +161,7 @@ function render(): void {
     (document.getElementById("settingsLevel") as HTMLSelectElement).value = session.level;
     (document.getElementById("settingsIntensity") as HTMLSelectElement).value = session.srs_intensity;
     (document.getElementById("settingsMode") as HTMLSelectElement).value = session.mode;
+    (document.getElementById("settingsPracticeMode") as HTMLSelectElement).value = session.practice_mode;
     (document.getElementById("settingsView") as HTMLSelectElement).value = session.view;
     (document.getElementById("settingsPace") as HTMLSelectElement).value = session.pace;
     (document.getElementById("settingsGoal") as HTMLInputElement).value = String(session.daily_goal_words);
@@ -159,9 +175,10 @@ function render(): void {
     setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
     setText(
       "heroCopy",
-      session.pace === "continuous"
-        ? "Continuous mode is on. Finish a card and the next one appears immediately."
-        : "Stay here and the next prompt will slide into place automatically.",
+      session.idle_message ||
+        (session.pace === "continuous"
+          ? "Continuous mode is on. Finish a card and the next one appears immediately."
+          : "Stay here and the next prompt will slide into place automatically."),
     );
   }
 
@@ -332,6 +349,7 @@ function bindEvents(): void {
         level: (document.getElementById("settingsLevel") as HTMLSelectElement).value,
         srs_intensity: (document.getElementById("settingsIntensity") as HTMLSelectElement).value,
         mode: (document.getElementById("settingsMode") as HTMLSelectElement).value,
+        practice_mode: (document.getElementById("settingsPracticeMode") as HTMLSelectElement).value,
         view: (document.getElementById("settingsView") as HTMLSelectElement).value,
         pace: (document.getElementById("settingsPace") as HTMLSelectElement).value,
         daily_goal_words: Number((document.getElementById("settingsGoal") as HTMLInputElement).value || 0),
