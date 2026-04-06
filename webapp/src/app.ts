@@ -43,6 +43,7 @@ interface StatsPayload {
 const state = {
   session: null as SessionResponse | null,
   settingsOpen: false,
+  activeQuizKey: null as string | null,
 };
 
 let countdownHandle: number | null = null;
@@ -182,9 +183,22 @@ function render(): void {
   }
 
   if (session.stage === "quiz" && session.quiz) {
+    const quizKey = `${session.quiz.english_word}::${session.quiz.german_word}::${session.quiz.word_type}`;
+    if (state.activeQuizKey !== quizKey) {
+      state.activeQuizKey = quizKey;
+      (document.getElementById("translationInput") as HTMLInputElement).value = "";
+      (document.getElementById("articleInput") as HTMLSelectElement).value = "";
+      (document.getElementById("wordTypeInput") as HTMLSelectElement).value = "";
+      (document.getElementById("sentenceInput") as HTMLTextAreaElement).value = "";
+      (document.getElementById("learnedCheckbox") as HTMLInputElement).checked = false;
+    }
     setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
     setText("heroCopy", "Translate, identify the word type, and add a sentence when you want feedback.");
     setText("quizEnglish", session.quiz.english_word);
+  }
+
+  if (session.stage !== "quiz") {
+    state.activeQuizKey = null;
   }
 
   if (session.stage === "result" && session.result) {

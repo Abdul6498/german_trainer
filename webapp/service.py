@@ -218,14 +218,17 @@ class TrainerWebService:
         self._prefetch_thread.start()
 
     def _prefetch_next_quiz(self) -> None:
-        try:
-            quiz = self.engine.create_quiz(mark_presented=False)
-        except Exception:
-            return
+        with self._state_lock:
+            if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None or not self._should_prefetch():
+                return
+            try:
+                quiz = self.engine.create_quiz(mark_presented=False)
+            except Exception:
+                return
 
-        with self._state_lock, self._prefetch_lock:
-            if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
-                self._prefetched_quiz = quiz
+            with self._prefetch_lock:
+                if self._current_quiz is None and self._latest_result is None and self._prefetched_quiz is None and self._should_prefetch():
+                    self._prefetched_quiz = quiz
 
     def _activate_due_card(self) -> None:
         if self._latest_result is not None:

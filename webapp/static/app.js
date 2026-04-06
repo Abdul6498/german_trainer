@@ -1,6 +1,7 @@
 const state = {
   session: null,
   settingsOpen: false,
+  activeQuizKey: null,
 };
 
 let countdownHandle = null;
@@ -141,9 +142,22 @@ function render() {
   }
 
   if (session.stage === "quiz" && session.quiz) {
+    const quizKey = `${session.quiz.english_word}::${session.quiz.german_word}::${session.quiz.word_type}`;
+    if (state.activeQuizKey !== quizKey) {
+      state.activeQuizKey = quizKey;
+      document.getElementById("translationInput").value = "";
+      document.getElementById("articleInput").value = "";
+      document.getElementById("wordTypeInput").value = "";
+      document.getElementById("sentenceInput").value = "";
+      document.getElementById("learnedCheckbox").checked = false;
+    }
     setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
     setText("heroCopy", "Translate, identify the word type, and add a sentence when you want feedback.");
     setText("quizEnglish", session.quiz.english_word);
+  }
+
+  if (session.stage !== "quiz") {
+    state.activeQuizKey = null;
   }
 
   if (session.stage === "result" && session.result) {
