@@ -1,6 +1,7 @@
 const state = {
   session: null,
   settingsOpen: false,
+  activeStudyKey: null,
   activeQuizKey: null,
 };
 
@@ -117,6 +118,11 @@ function render() {
   }
 
   if (session.stage === "study" && session.quiz) {
+    const studyKey = `${session.quiz.english_word}::${session.quiz.german_word}::${session.quiz.word_type}`;
+    if (state.activeStudyKey !== studyKey) {
+      state.activeStudyKey = studyKey;
+      document.getElementById("understoodCheckbox").checked = false;
+    }
     setText("heroTitle", `Study ${session.quiz.german_word}`);
     setText("heroCopy", "Scan the word, hear it, then move it forward when you're ready.");
     setText("studyGerman", session.quiz.german_word);
@@ -139,6 +145,10 @@ function render() {
     }
     fillList("studyExamples", session.quiz.examples || []);
     fillList("studyNotes", session.quiz.ai_word_notes && session.quiz.ai_word_notes.length ? session.quiz.ai_word_notes : ["No extra notes for this card."]);
+  }
+
+  if (session.stage !== "study") {
+    state.activeStudyKey = null;
   }
 
   if (session.stage === "quiz" && session.quiz) {
