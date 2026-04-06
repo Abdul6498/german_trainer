@@ -1,0 +1,9 @@
+{
+  "A1.1": "- Strict A1.1 style.\\n- Use very high-frequency daily vocabulary.\\n- Prefer present tense only.\\n- Use one clear clause.\\n- Keep sentence length around 5 to 8 words.\\n- Use very concrete real-life situations.",
+  "A1.2": "- A1.2 style.\\n- Prefer present tense.\\n- Use one clear clause, with an occasional simple fixed phrase.\\n- Keep sentence length around 6 to 9 words.\\n- Use practical daily contexts such as home, shopping, transport, and family.",
+  "A2.1": "- A2.1 style.\\n- Mostly present tense; Perfekt is allowed when natural.\\n- Use one clause or two short natural clauses.\\n- Keep sentence length around 7 to 11 words.\\n- Use realistic everyday contexts, not textbook nonsense.",
+  "A2.2": "- A2.2 style.\\n- Present and Perfekt are both acceptable.\\n- Use one to two short clauses.\\n- Keep sentence length around 8 to 12 words.\\n- Allow slightly richer real-life detail and simple connectors.",
+  "B1.1": "- B1.1 style.\\n- Use natural practical German.\\n- One to two clauses with clear connectors.\\n- Keep sentence length around 9 to 14 words.\\n- Add believable context from normal life, work, study, or travel.",
+  "B1.2": "- B1.2 style.\\n- Use natural modern German with mild complexity.\\n- One to two clauses, sometimes with a smoother connector.\\n- Keep sentence length around 10 to 16 words.\\n- Make examples feel like something a real person would say.",
+  "DEFAULT": "- {level} learner style.\\n- Keep the language clear, natural, practical, and teacher-friendly.\\n- Prefer believable real-world usage over abstract or artificial examples."
+}

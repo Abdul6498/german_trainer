@@ -237,6 +237,7 @@ class WordSource:
             words.extend(self._CURRICULUM.get(lvl, []))
         return list(dict.fromkeys(words))
 
+
     def _generate_and_store_word(self) -> None:
         candidate = self._generate_word()
         if not candidate or candidate in self.words:

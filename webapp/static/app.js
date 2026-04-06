@@ -3,6 +3,8 @@ const state = {
   settingsOpen: false,
   activeStudyKey: null,
   activeQuizKey: null,
+  activeCardStartedAt: 0,
+  timeoutExceeded: false,
 };
 
 let countdownHandle = null;
@@ -34,13 +36,27 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
-function fillList(id, items) {
+function fillList(id, items, speakable = false) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = "";
   items.forEach((item) => {
     const li = document.createElement("li");
-    li.textContent = item;
+    if (speakable) {
+      li.className = "speakable-item";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "speak-inline-button list-speak-button";
+      button.setAttribute("aria-label", `Pronounce sentence: ${item}`);
+      button.textContent = "🔊";
+      button.addEventListener("click", () => void speakGerman(item));
+      const text = document.createElement("span");
+      text.textContent = item;
+      li.appendChild(button);
+      li.appendChild(text);
+    } else {
+      li.textContent = item;
+    }
     el.appendChild(li);
   });
 }
@@ -65,6 +81,13 @@ function setBadge(stage) {
   if (!badge) return;
   badge.textContent = stage;
   badge.className = `status-pill status-${stage}`;
+}
+
+function setTimeoutState(active) {
+  state.timeoutExceeded = active;
+  setVisible("timeoutBadge", active);
+  document.getElementById("studyCard")?.classList.toggle("card-timeout", active && state.session?.stage === "study");
+  document.getElementById("quizCard")?.classList.toggle("card-timeout", active && state.session?.stage === "quiz");
 }
 
 function setResultChecks(items) {
@@ -120,6 +143,7 @@ function render() {
     document.getElementById("settingsPracticeMode").value = session.practice_mode;
     document.getElementById("settingsView").value = session.view;
     document.getElementById("settingsPace").value = session.pace;
+    document.getElementById("settingsFocusTimeout").value = String(session.focus_timeout_minutes);
     document.getElementById("settingsGoal").value = String(session.daily_goal_words);
   }
 
@@ -128,6 +152,7 @@ function render() {
   setVisible("resultCard", session.stage === "result");
 
   if (session.stage === "idle") {
+    setTimeoutState(false);
     setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
     setText(
       "heroCopy",
@@ -143,11 +168,14 @@ function render() {
     if (state.activeStudyKey !== studyKey) {
       state.activeStudyKey = studyKey;
       document.getElementById("understoodCheckbox").checked = false;
+      state.activeCardStartedAt = Date.now();
+      setTimeoutState(false);
     }
     setText("heroTitle", `Study ${session.quiz.german_word}`);
     setText("heroCopy", "Scan the word, hear it, then move it forward when you're ready.");
     setText("studyGerman", session.quiz.german_word);
     setText("studyEnglish", `English: ${session.quiz.english_word}`);
+    setVisible("studyNewBadge", !!session.quiz.is_new);
     const meta = [
       session.quiz.word_type,
       session.quiz.cefr_level || "-",
@@ -164,12 +192,13 @@ function render() {
         metaHost.appendChild(pill);
       });
     }
-    fillList("studyExamples", session.quiz.examples || []);
+    fillList("studyExamples", session.quiz.examples || [], true);
     fillList("studyNotes", session.quiz.ai_word_notes && session.quiz.ai_word_notes.length ? session.quiz.ai_word_notes : ["No extra notes for this card."]);
   }
 
   if (session.stage !== "study") {
     state.activeStudyKey = null;
+    setVisible("studyNewBadge", false);
   }
 
   if (session.stage === "quiz" && session.quiz) {
@@ -181,17 +210,22 @@ function render() {
       document.getElementById("wordTypeInput").value = "";
       document.getElementById("sentenceInput").value = "";
       document.getElementById("learnedCheckbox").checked = false;
+      state.activeCardStartedAt = Date.now();
+      setTimeoutState(false);
     }
     setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
     setText("heroCopy", "Translate, identify the word type, and add a sentence when you want feedback.");
     setText("quizEnglish", session.quiz.english_word);
+    setVisible("quizNewBadge", !!session.quiz.is_new);
   }
 
   if (session.stage !== "quiz") {
     state.activeQuizKey = null;
+    setVisible("quizNewBadge", false);
   }
 
   if (session.stage === "result" && session.result) {
+    setTimeoutState(false);
     const result = session.result;
     const quiz = result.quiz || {};
     setText("heroTitle", String(result.result_label || "Result"));
@@ -214,7 +248,7 @@ function render() {
     (result.sentence_structure_points || []).forEach((point) => sentenceItems.push(point));
     (result.sentence_issues || []).forEach((issue) => sentenceItems.push(issue));
     fillList("resultSentence", sentenceItems.length ? sentenceItems : ["No sentence feedback for this round."]);
-    fillList("resultExamples", result.examples || []);
+    fillList("resultExamples", result.examples || [], true);
   }
 }
 
@@ -259,6 +293,17 @@ function startPolling() {
 
   countdownHandle = window.setInterval(() => {
     if (!state.session) return;
+    if (
+      !state.timeoutExceeded &&
+      state.activeCardStartedAt > 0 &&
+      (state.session.stage === "study" || state.session.stage === "quiz") &&
+      state.session.focus_timeout_minutes > 0
+    ) {
+      const limitMs = state.session.focus_timeout_minutes * 60 * 1000;
+      if (Date.now() - state.activeCardStartedAt >= limitMs) {
+        setTimeoutState(true);
+      }
+    }
     if (state.session.stage === "idle" && state.session.next_due_in_seconds > 0) {
       state.session = {
         ...state.session,
@@ -305,6 +350,7 @@ function bindEvents() {
         practice_mode: document.getElementById("settingsPracticeMode").value,
         view: document.getElementById("settingsView").value,
         pace: document.getElementById("settingsPace").value,
+        focus_timeout_minutes: Number(document.getElementById("settingsFocusTimeout").value || 0),
         daily_goal_words: Number(document.getElementById("settingsGoal").value || 0),
       }),
     });
@@ -313,8 +359,8 @@ function bindEvents() {
     render();
   });
 
-  document.getElementById("studyPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
-  document.getElementById("quizPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("studyWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("quizWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {
     const understood = document.getElementById("understoodCheckbox").checked;

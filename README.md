@@ -10,7 +10,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 export OPENAI_API_KEY="your_key_here"
-python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode learn-new --view basic --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
+python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode learn-new --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
 ```
 
 Then open `http://127.0.0.1:8000`.
@@ -30,6 +30,7 @@ Then open `http://127.0.0.1:8000`.
 
 You can now also change `level`, `intensity`, `mode`, `word plan`, `pace`, `view`, and `daily goal` directly inside the app UI without restarting the server.
 
+
 ## Word Plan
 
 - `learn-new`
@@ -47,6 +48,7 @@ In `quiz-only`, the app now avoids inventing brand-new words. If you have no qui
 - Frontend source: TypeScript in [app.ts](/home/user/Workspace/german_trainer/webapp/src/app.ts)
 - Browser-ready frontend assets: `webapp/static/`
 - Trainer engine, AI services, and progress logic remain in the Python modules under `engine/` and `services/`
+- AI prompt templates now live in `prompts/` as separate JSON files for easier prompt tuning and extension
 
 ## Notes
 

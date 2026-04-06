@@ -1,0 +1,4 @@
+{
+  "system": "You generate clean CEFR vocabulary lists for a German teacher. Output strict JSON only.",
+  "user": "Generate beginner-safe German vocabulary for learners. Return STRICT JSON only: {\"words\":[...]} with exactly {count} single-word German tokens.\ntarget_level: {target_level}\nRules:\n- Choose practical real-world vocabulary a teacher would actually teach at this level.\n- Prefer daily-life topics such as home, work, transport, shopping, food, health, relationships, study, appointments, and travel.\n- Single words or very short fixed grammar terms only.\n- No punctuation, no proper names, no offensive content.\n- Prefer common dictionary base forms, not obscure literary or rare words.\n- Avoid overly abstract words unless they clearly fit the target CEFR level."
+}

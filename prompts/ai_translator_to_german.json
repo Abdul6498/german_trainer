@@ -1,0 +1,4 @@
+{
+  "system": "You are a precise EN->DE dictionary assistant helping a German teacher build study cards.",
+  "user": "Translate this English word or short phrase into the most natural standard German form for a learner flashcard. Return ONLY the German lemma or short phrase, with no explanation and no punctuation.\nword: {token}"
+}

@@ -5,6 +5,7 @@ interface SessionResponse {
   interval_minutes: number;
   next_due_in_seconds: number;
   pace: "timed" | "continuous";
+  focus_timeout_minutes: number;
   daily_goal_words: number;
   srs_intensity: string;
   level: string;
@@ -23,6 +24,7 @@ interface QuizPayload {
   german_word: string;
   word_type: string;
   cefr_level: string;
+  is_new: boolean;
   noun_info: {
     article: string;
     plural: string;
@@ -48,6 +50,8 @@ const state = {
   settingsOpen: false,
   activeStudyKey: null as string | null,
   activeQuizKey: null as string | null,
+  activeCardStartedAt: 0,
+  timeoutExceeded: false,
 };
 
 let countdownHandle: number | null = null;
@@ -78,13 +82,27 @@ function setText(id: string, value: string): void {
   if (el) el.textContent = value;
 }
 
-function fillList(id: string, items: string[]): void {
+function fillList(id: string, items: string[], speakable = false): void {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = "";
   items.forEach((item) => {
     const li = document.createElement("li");
-    li.textContent = item;
+    if (speakable) {
+      li.className = "speakable-item";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "speak-inline-button list-speak-button";
+      button.setAttribute("aria-label", `Pronounce sentence: ${item}`);
+      button.textContent = "🔊";
+      button.addEventListener("click", () => void speakGerman(item));
+      const text = document.createElement("span");
+      text.textContent = item;
+      li.appendChild(button);
+      li.appendChild(text);
+    } else {
+      li.textContent = item;
+    }
     el.appendChild(li);
   });
 }
@@ -109,6 +127,13 @@ function setBadge(stage: SessionStage): void {
   if (!badge) return;
   badge.textContent = stage;
   badge.className = `status-pill status-${stage}`;
+}
+
+function setTimeoutState(active: boolean): void {
+  state.timeoutExceeded = active;
+  setVisible("timeoutBadge", active);
+  document.getElementById("studyCard")?.classList.toggle("card-timeout", active && state.session?.stage === "study");
+  document.getElementById("quizCard")?.classList.toggle("card-timeout", active && state.session?.stage === "quiz");
 }
 
 function setResultChecks(items: Array<{ label: string; ok: boolean }>): void {
@@ -164,6 +189,7 @@ function render(): void {
     (document.getElementById("settingsPracticeMode") as HTMLSelectElement).value = session.practice_mode;
     (document.getElementById("settingsView") as HTMLSelectElement).value = session.view;
     (document.getElementById("settingsPace") as HTMLSelectElement).value = session.pace;
+    (document.getElementById("settingsFocusTimeout") as HTMLInputElement).value = String(session.focus_timeout_minutes);
     (document.getElementById("settingsGoal") as HTMLInputElement).value = String(session.daily_goal_words);
   }
 
@@ -172,6 +198,7 @@ function render(): void {
   setVisible("resultCard", session.stage === "result");
 
   if (session.stage === "idle") {
+    setTimeoutState(false);
     setText("heroTitle", session.pace === "continuous" ? "Ready for the next card" : "Waiting for the next card");
     setText(
       "heroCopy",
@@ -187,11 +214,14 @@ function render(): void {
     if (state.activeStudyKey !== studyKey) {
       state.activeStudyKey = studyKey;
       (document.getElementById("understoodCheckbox") as HTMLInputElement).checked = false;
+      state.activeCardStartedAt = Date.now();
+      setTimeoutState(false);
     }
     setText("heroTitle", `Study ${session.quiz.german_word}`);
     setText("heroCopy", "Scan the word, hear it, then move it forward when you're ready.");
     setText("studyGerman", session.quiz.german_word);
     setText("studyEnglish", `English: ${session.quiz.english_word}`);
+    setVisible("studyNewBadge", Boolean(session.quiz.is_new));
     const meta = [
       session.quiz.word_type,
       session.quiz.cefr_level || "-",
@@ -208,12 +238,13 @@ function render(): void {
         metaHost.appendChild(pill);
       });
     }
-    fillList("studyExamples", session.quiz.examples);
+    fillList("studyExamples", session.quiz.examples, true);
     fillList("studyNotes", session.quiz.ai_word_notes.length ? session.quiz.ai_word_notes : ["No extra notes for this card."]);
   }
 
   if (session.stage !== "study") {
     state.activeStudyKey = null;
+    setVisible("studyNewBadge", false);
   }
 
   if (session.stage === "quiz" && session.quiz) {
@@ -225,17 +256,22 @@ function render(): void {
       (document.getElementById("wordTypeInput") as HTMLSelectElement).value = "";
       (document.getElementById("sentenceInput") as HTMLTextAreaElement).value = "";
       (document.getElementById("learnedCheckbox") as HTMLInputElement).checked = false;
+      state.activeCardStartedAt = Date.now();
+      setTimeoutState(false);
     }
     setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
     setText("heroCopy", "Translate, identify the word type, and add a sentence when you want feedback.");
     setText("quizEnglish", session.quiz.english_word);
+    setVisible("quizNewBadge", Boolean(session.quiz.is_new));
   }
 
   if (session.stage !== "quiz") {
     state.activeQuizKey = null;
+    setVisible("quizNewBadge", false);
   }
 
   if (session.stage === "result" && session.result) {
+    setTimeoutState(false);
     const result = session.result as Record<string, unknown>;
     const quiz = result.quiz as QuizPayload;
     setText("heroTitle", String(result.result_label || "Result"));
@@ -261,7 +297,7 @@ function render(): void {
       sentenceItems.push(...((result.sentence_issues as string[]) || []));
     }
     fillList("resultSentence", sentenceItems.length ? sentenceItems : ["No sentence feedback for this round."]);
-    fillList("resultExamples", (result.examples as string[]) || []);
+    fillList("resultExamples", (result.examples as string[]) || [], true);
   }
 }
 
@@ -306,6 +342,17 @@ function startPolling(): void {
 
   countdownHandle = window.setInterval(() => {
     if (!state.session) return;
+    if (
+      !state.timeoutExceeded &&
+      state.activeCardStartedAt > 0 &&
+      (state.session.stage === "study" || state.session.stage === "quiz") &&
+      state.session.focus_timeout_minutes > 0
+    ) {
+      const limitMs = state.session.focus_timeout_minutes * 60 * 1000;
+      if (Date.now() - state.activeCardStartedAt >= limitMs) {
+        setTimeoutState(true);
+      }
+    }
     if (state.session.stage === "idle" && state.session.next_due_in_seconds > 0) {
       state.session = {
         ...state.session,
@@ -352,6 +399,7 @@ function bindEvents(): void {
         practice_mode: (document.getElementById("settingsPracticeMode") as HTMLSelectElement).value,
         view: (document.getElementById("settingsView") as HTMLSelectElement).value,
         pace: (document.getElementById("settingsPace") as HTMLSelectElement).value,
+        focus_timeout_minutes: Number((document.getElementById("settingsFocusTimeout") as HTMLInputElement).value || 0),
         daily_goal_words: Number((document.getElementById("settingsGoal") as HTMLInputElement).value || 0),
       }),
     });
@@ -360,8 +408,8 @@ function bindEvents(): void {
     render();
   });
 
-  document.getElementById("studyPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
-  document.getElementById("quizPlayButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("studyWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("quizWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {
     const understood = (document.getElementById("understoodCheckbox") as HTMLInputElement).checked;

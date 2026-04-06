@@ -18,6 +18,7 @@ class QuizPayload(BaseModel):
     german_word: str
     word_type: str
     cefr_level: str = ""
+    is_new: bool = False
     noun_info: NounInfoPayload
     examples: list[str] = Field(default_factory=list)
     ai_word_notes: list[str] = Field(default_factory=list)
@@ -39,6 +40,7 @@ class SessionPayload(BaseModel):
     interval_minutes: int
     next_due_in_seconds: int
     pace: Literal["timed", "continuous"]
+    focus_timeout_minutes: int
     daily_goal_words: int
     srs_intensity: str
     level: str
@@ -72,4 +74,5 @@ class SettingsPayload(BaseModel):
     practice_mode: Literal["learn-new", "repeat-practice"]
     view: Literal["basic", "detail"]
     pace: Literal["timed", "continuous"]
+    focus_timeout_minutes: int = Field(ge=0, le=120)
     daily_goal_words: int = Field(ge=0, le=500)

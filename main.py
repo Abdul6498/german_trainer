@@ -58,6 +58,12 @@ def parse_args() -> argparse.Namespace:
         help="Timed mode waits between cards; continuous mode moves to the next card immediately.",
     )
     parser.add_argument(
+        "--focus-timeout-minutes",
+        type=int,
+        default=_env_int("FOCUS_TIMEOUT_MINUTES", 3),
+        help="After this many minutes on the same active card, show an overtime warning.",
+    )
+    parser.add_argument(
         "--sentence-source",
         choices=["ai"],
         default="ai",
@@ -102,7 +108,8 @@ def main() -> None:
     console.print(
         f"Starting German Trainer Web App on http://{args.host}:{args.port} "
         f"(level={args.level}, mode={args.mode}, practice_mode={args.practice_mode}, "
-        f"pace={args.pace}, interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
+        f"pace={args.pace}, focus_timeout={args.focus_timeout_minutes}m, "
+        f"interval={args.interval_minutes}m, ai_notes={args.ai_notes})"
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

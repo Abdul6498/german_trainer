@@ -126,6 +126,7 @@ class TrainerWebService:
                 interval_minutes=self.args.interval_minutes,
                 next_due_in_seconds=max(0, int((self._next_due_at - datetime.now()).total_seconds())),
                 pace=self.args.pace,
+                focus_timeout_minutes=self.args.focus_timeout_minutes,
                 daily_goal_words=self.args.daily_goal_words,
                 srs_intensity=self.args.srs_intensity,
                 level=self.args.level,
@@ -147,6 +148,7 @@ class TrainerWebService:
         practice_mode: str,
         view: str,
         pace: str,
+        focus_timeout_minutes: int,
         daily_goal_words: int,
     ) -> SessionPayload:
         with self._state_lock:
@@ -156,6 +158,7 @@ class TrainerWebService:
             self.args.practice_mode = practice_mode
             self.args.view = view
             self.args.pace = pace
+            self.args.focus_timeout_minutes = focus_timeout_minutes
             self.args.daily_goal_words = daily_goal_words
             self._prefetch_generation += 1
             self._current_quiz = None
@@ -367,6 +370,7 @@ class TrainerWebService:
             german_word=quiz.german_word,
             word_type=quiz.word_type,
             cefr_level=quiz.cefr_level,
+            is_new=quiz.is_new,
             noun_info=NounInfoPayload(
                 article=quiz.noun_info.article,
                 plural=quiz.noun_info.plural,

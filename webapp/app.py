@@ -63,6 +63,7 @@ def create_app(root_dir: Path, args: Namespace) -> FastAPI:
             practice_mode=payload.practice_mode,
             view=payload.view,
             pace=payload.pace,
+            focus_timeout_minutes=payload.focus_timeout_minutes,
             daily_goal_words=payload.daily_goal_words,
         )
 

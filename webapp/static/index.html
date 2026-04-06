@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>German Trainer</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260406d" />
   </head>
   <body>
     <div class="app-shell">
@@ -99,6 +99,7 @@
           </div>
           <div class="hero-status">
             <span class="status-pill" id="stageBadge">Idle</span>
+            <span class="timeout-pill hidden" id="timeoutBadge">Overtime</span>
           </div>
         </section>
 
@@ -106,10 +107,15 @@
           <div class="card-header">
             <div>
               <span class="eyebrow">Study</span>
-              <h3 id="studyGerman">-</h3>
+              <div class="spoken-line">
+                <button class="speak-inline-button" id="studyWordSpeakButton" type="button" aria-label="Pronounce word">🔊</button>
+                <h3 id="studyGerman">-</h3>
+              </div>
               <p id="studyEnglish">-</p>
             </div>
-            <button class="ghost-button" id="studyPlayButton" type="button">Pronounce</button>
+            <div class="card-header-actions">
+              <span class="new-badge hidden" id="studyNewBadge">New</span>
+            </div>
           </div>
           <div class="pill-row" id="studyMeta"></div>
           <div class="study-grid">
@@ -135,10 +141,15 @@
           <div class="card-header">
             <div>
               <span class="eyebrow">Quiz</span>
-              <h3 id="quizEnglish">-</h3>
+              <div class="spoken-line">
+                <button class="speak-inline-button" id="quizWordSpeakButton" type="button" aria-label="Pronounce word">🔊</button>
+                <h3 id="quizEnglish">-</h3>
+              </div>
               <p id="quizPrompt">Fill in the translation and tell me what kind of word this is.</p>
             </div>
-            <button class="ghost-button" id="quizPlayButton" type="button">Pronounce</button>
+            <div class="card-header-actions">
+              <span class="new-badge hidden" id="quizNewBadge">New</span>
+            </div>
           </div>
 
           <form id="quizForm" class="form-grid">
@@ -330,6 +341,11 @@
           </select>
         </label>
         <label>
+          <span class="stat-label">Focus Timeout</span>
+          <input type="number" id="settingsFocusTimeout" min="0" max="120" step="1" />
+          <small class="field-hint">After this many minutes on one study or quiz card, show an overtime warning.</small>
+        </label>
+        <label>
           <span class="stat-label">Daily Goal</span>
           <input type="number" id="settingsGoal" min="0" max="500" step="1" />
         </label>
@@ -337,6 +353,6 @@
       </form>
     </aside>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=20260406d"></script>
   </body>
 </html>
