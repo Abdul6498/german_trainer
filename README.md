@@ -1,11 +1,6 @@
 # German Trainer
 
-A local Python desktop trainer that pops up periodic German exercises for vocabulary, articles, sentence practice, verb work, and core grammar concepts. The vocabulary pool combines CEFR curriculum words (`A1`..`C2`) with `wonderwords`, cached in `data/generated_words_<level>.txt`.
-
-Learning flow:
-- First encounter of a word: **Study mode** shows German word, English meaning, and grammar details.
-- If you check **\"Yes, I understand\"**, that word moves to **Quiz mode**.
-- Next encounters: English prompt + answer form quiz.
+A full-stack German learning app with a Python backend and a browser frontend. The backend keeps the AI study/quiz engine, spacing logic, and progress tracking. The frontend gives you a cleaner interface than the old tkinter popups.
 
 ## Quick start
 
@@ -15,49 +10,100 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 export OPENAI_API_KEY="your_key_here"
-python -u main.py --interval-minutes 1 --level A1.1 --srs-intensity hard --mode mixed --view basic --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --ai-notes off
+python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode learn-new --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
 ```
 
-Optional:
+Then open `http://127.0.0.1:8000`.
+
+## Run options
+
+- `--mode mixed|study-only|quiz-only`
+- `--practice-mode learn-new|repeat-practice`
+- `--view basic|detail`
+- `--word-source ai|local`
+- `--translation-source ai|deep-translator`
+- `--sentence-source ai`
+- `--daily-goal-words 60`
+- `--ai-notes off|short|full`
+- `--host 127.0.0.1`
+- `--port 8000`
+
+You can now also change `level`, `intensity`, `mode`, `word plan`, `pace`, `view`, and `daily goal` directly inside the app UI without restarting the server.
+
+
+## Word Plan
+
+- `learn-new`
+  - Study mode introduces new words from AI.
+  - Quiz mode uses words you already studied and marked as understood.
+- `repeat-practice`
+  - Focuses on review/repetition from words already in your studied/quiz pool.
+  - If no review words exist yet, the app falls back to study cards unless you are in `quiz-only`.
+
+In `quiz-only`, the app now avoids inventing brand-new words. If you have no quiz-ready words yet, it stays idle and tells you to study a few first.
+
+## Architecture
+
+- Backend: FastAPI served from [main.py](/home/user/Workspace/german_trainer/main.py) and [app.py](/home/user/Workspace/german_trainer/webapp/app.py)
+- Frontend source: TypeScript in [app.ts](/home/user/Workspace/german_trainer/webapp/src/app.ts)
+- Browser-ready frontend assets: `webapp/static/`
+- Trainer engine, AI services, and progress logic remain in the Python modules under `engine/` and `services/`
+- AI prompt templates now live in `prompts/` as separate JSON files for easier prompt tuning and extension
+
+## Notes
+
+- In AI mode, study cards and quiz feedback come from OpenAI-backed services.
+- Sentence feedback is shown in results, but sentence quality does not affect quiz scoring.
+- Runtime/local data stays in `storage/` and generated caches stay under `data/`.
+
+## Fly.io Deploy
+
+This project is ready to deploy on Fly.io with the included [Dockerfile](/home/user/Workspace/german_trainer/Dockerfile) and [fly.toml](/home/user/Workspace/german_trainer/fly.toml).
+
+### 1. Install Fly CLI
 
 ```bash
-python -u main.py --interval-minutes 1 --level A2.1 --srs-intensity hard --mode mixed --view basic --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
+curl -L https://fly.io/install.sh | sh
 ```
 
-Mode options:
-- `--mode mixed`: stage-based (study first, quiz later)
-- `--mode study-only`: always show study cards
-- `--mode quiz-only`: always show quiz form
+### 2. Authenticate
 
-View options:
-- `--view basic`: core learning tables (article/plural/gender, examples, conjugation)
-- `--view detail`: full dictionary tables (`german-nouns` flexion + `verbformen` metadata)
+```bash
+fly auth login
+```
 
-Sentence source:
-- `--sentence-source ai`: OpenAI sentences/corrections only (requires `OPENAI_API_KEY`)
-- `--openai-model`: defaults to `gpt-4.1-mini`
+### 3. Review the app name
 
-AI-first pipeline:
-- In AI mode, the app uses: `AI German word -> AI English translation -> grammar enrichment -> AI sentence generation`.
-- Study cards include AI level-aware word explanation notes for the current CEFR level.
-- Result view includes AI translation of your entered German sentence plus sentence-structure explanation.
+The default app name in [fly.toml](/home/user/Workspace/german_trainer/fly.toml) is `abdul-german-trainer`. If Fly says it is already taken, change the `app = "..."` value to something unique.
 
-Word and translation source:
-- `--word-source ai|local` (default `ai`)
-- `--translation-source ai|deep-translator` (default `ai`)
-- `--daily-goal-words`: default `60`; before this target app prefers new words, then repeats seen words
-- `--ai-notes off|short|full`: controls AI note verbosity and token usage
+### 4. Create the app and set secrets
 
-Sub-levels:
-- `--level A1.1`, `A1.2`, `A2.1`, `A2.2`, `B1.1`, `B1.2`
-- Backward aliases also work: `A1`, `A2`, `B1`, `BB1`
+```bash
+fly launch --no-deploy
+fly secrets set OPENAI_API_KEY=your_key_here
+```
 
-Audio note (WSL/Linux):
-- Pronunciation tries `playsound`, then `ffplay`, `mpg123`, `paplay`, `aplay`.
-- If none are installed, install one backend (for example `ffmpeg` or `mpg123`) and retry.
+Optional secrets if you want different defaults:
 
-Sentence correction:
-- The app uses `language_tool_python` (`de-DE`) to detect grammar/style issues in your sentence.
-- Result view shows detected issues and a corrected sentence suggestion.
-- OpenAI also proposes improved sentence corrections.
-- OpenAI also returns English translation + structure notes for your sentence (helpful for grammar learning).
+```bash
+fly secrets set INTERVAL_MINUTES=5 DAILY_GOAL_WORDS=60
+```
+
+### 5. Deploy
+
+```bash
+fly deploy
+```
+
+### 6. Open the app
+
+```bash
+fly open
+```
+
+### Notes for Fly
+
+- The service listens on `0.0.0.0:8080` inside the container.
+- Health checks use `/healthz`.
+- By default the app will sleep when idle on Fly free/low-cost settings and start again on demand.
+- Files under `storage/` and generated caches under `data/` are ephemeral inside the container. If you want persistent progress/history on Fly, we should add a Fly volume or move state to a database/object store.

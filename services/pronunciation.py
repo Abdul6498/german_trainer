@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import tempfile
+from io import BytesIO
 from pathlib import Path
+
+try:
+    import edge_tts
+except ImportError:  # pragma: no cover - optional dependency at runtime
+    edge_tts = None
 
 from gtts import gTTS
 from playsound import playsound
@@ -14,12 +21,46 @@ from playsound import playsound
 class PronunciationService:
     """Generate and play German word pronunciation."""
 
+    EDGE_VOICE = "de-DE-KatjaNeural"
+
+    def _synthesize_with_edge_tts(self, german_word: str) -> bytes | None:
+        if edge_tts is None:
+            return None
+
+        async def _run() -> bytes:
+            communicate = edge_tts.Communicate(text=german_word, voice=self.EDGE_VOICE)
+            audio_chunks: list[bytes] = []
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_chunks.append(chunk["data"])
+            return b"".join(audio_chunks)
+
+        try:
+            return asyncio.run(_run())
+        except RuntimeError:
+            # If an event loop is already running, create an isolated one.
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(_run())
+            finally:
+                loop.close()
+        except Exception:
+            return None
+
+    def synthesize_bytes(self, german_word: str) -> bytes:
+        edge_audio = self._synthesize_with_edge_tts(german_word)
+        if edge_audio:
+            return edge_audio
+        buffer = BytesIO()
+        tts = gTTS(text=german_word, lang="de")
+        tts.write_to_fp(buffer)
+        return buffer.getvalue()
+
     def play(self, german_word: str) -> tuple[bool, str]:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
             temp_path = Path(tmp.name)
         try:
-            tts = gTTS(text=german_word, lang="de")
-            tts.save(str(temp_path))
+            temp_path.write_bytes(self.synthesize_bytes(german_word))
             ok, message = self._play_file(temp_path)
             if ok:
                 return True, "played"

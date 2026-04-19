@@ -1,0 +1,3 @@
+{
+  "user": "Analyze one German sentence for a learner and return STRICT JSON only: {\"translation_en\":\"...\",\"structure\":\"...\",\"points\":[\"...\"]}.\ntarget_level: {target_level}\nsentence_de: {german_sentence}\nRules:\n{style_rules}\n- Explain like a patient teacher, not like a grammar parser.\n- translation_en: natural English meaning.\n- structure: short pattern like 'Subject + Verb + Object'.\n- points: 3-6 practical bullets explaining case, verb position, tense, connector use, or word order in simple learner-friendly English.\n- Mention why the sentence sounds natural in real use.\n- Keep explanation concrete and easy to apply to future sentences."
+}

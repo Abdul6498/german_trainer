@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from random import choice
+from random import choice, choices
 
 from engine.grammar_checker import GrammarChecker, NounInfo
 from engine.sentence_generator import SentenceGenerator
@@ -30,6 +30,7 @@ class QuizItem:
     examples: list[str]
     ai_word_notes: list[str]
     focus_mode: str
+    is_new: bool = False
 
 
 @dataclass
@@ -80,14 +81,38 @@ class QuizEngine:
         self.sentence_source = sentence_source
         self.daily_goal_words = max(0, int(daily_goal_words))
 
-    def create_quiz(self, english_word: str | None = None) -> QuizItem:
+    def create_quiz(
+        self,
+        english_word: str | None = None,
+        *,
+        mark_presented: bool = True,
+        selection_mode: str = "default",
+    ) -> QuizItem:
+        is_new = bool(english_word and self.progress_tracker.is_new_word(english_word))
         if english_word is None:
-            english_word = self._select_word_for_daily_goal()
-        self.progress_tracker.mark_word_presented(english_word)
+            english_word = self._select_word_for_selection_mode(selection_mode)
+            is_new = bool(english_word and self.progress_tracker.is_new_word(english_word))
+
+        cached_quiz = self._quiz_from_cached_meta(english_word or "")
+        if cached_quiz is not None:
+            cached_quiz.is_new = is_new
+            if mark_presented:
+                self.progress_tracker.mark_word_presented(cached_quiz.english_word)
+            return cached_quiz
 
         if self.word_source.source == "ai":
             raw_token = english_word or self.word_source.next_word()
             raw_token = raw_token.strip()
+
+            cached_english = self.progress_tracker.find_english_for_german(raw_token)
+            if cached_english:
+                is_new = self.progress_tracker.is_new_word(cached_english)
+                cached_quiz = self._quiz_from_cached_meta(cached_english)
+                if cached_quiz is not None:
+                    cached_quiz.is_new = is_new
+                    if mark_presented:
+                        self.progress_tracker.mark_word_presented(cached_quiz.english_word)
+                    return cached_quiz
 
             # Canonicalize AI-generated token through DE<->EN translation to avoid
             # accidental English outputs such as "Mouth" in the German slot.
@@ -104,16 +129,18 @@ class QuizEngine:
             english_word = english_word or self.word_source.next_word()
             german_word = self.translator.to_german(english_word)
 
-        cached_quiz = self._quiz_from_cached_meta(english_word or "")
-        if cached_quiz is not None:
-            return cached_quiz
+        is_new = bool(english_word and self.progress_tracker.is_new_word(english_word))
+        if mark_presented and english_word:
+            self.progress_tracker.mark_word_presented(english_word)
 
         ai_profile = self._build_ai_profile(
             seed_german=german_word,
             seed_english=english_word or "",
         )
         if ai_profile:
-            return self._quiz_from_ai_profile(ai_profile)
+            quiz = self._quiz_from_ai_profile(ai_profile)
+            quiz.is_new = is_new
+            return quiz
 
         analysis = self.grammar_checker.analyze_word(german_word)
         if analysis.word_type == "noun" and german_word and german_word[0].islower():
@@ -179,9 +206,10 @@ class QuizEngine:
                 word_type=word_type,
                 article=noun_info.article,
                 plural=noun_info.plural,
-                count=3,
+                count=2,
             )
             examples = ai_examples or [f"AI sentence unavailable for '{german_word}'."]
+        examples = self._normalize_examples(german_word, examples)
         ai_word_notes: list[str] = []
 
         focus_mode = choice(["translation", "sentence", "fill_blank", "article", "conjugation", "grammar"])
@@ -230,7 +258,18 @@ class QuizEngine:
             examples=examples,
             ai_word_notes=ai_word_notes,
             focus_mode=focus_mode,
+            is_new=is_new,
         )
+
+    def _select_word_for_selection_mode(self, selection_mode: str) -> str:
+        normalized = selection_mode.strip().lower()
+        if normalized in {"quiz-review", "repeat-practice"}:
+            review_word = self._select_quiz_ready_word()
+            if review_word:
+                return review_word
+        if normalized == "study-new":
+            return self.word_source.next_word()
+        return self._select_word_for_daily_goal()
 
     def _select_word_for_daily_goal(self) -> str:
         candidate = self.word_source.next_word()
@@ -248,6 +287,46 @@ class QuizEngine:
                 return candidate
             candidate = self.word_source.next_word()
         return candidate
+
+    def has_quiz_ready_words(self) -> bool:
+        return bool(self._quiz_ready_candidates())
+
+    def _select_quiz_ready_word(self) -> str:
+        candidates = self._quiz_ready_candidates()
+        if not candidates:
+            return ""
+
+        weighted_words: list[tuple[str, float]] = []
+        for english_word, record in candidates:
+            wrong = int(record.get("wrong_count", 0))
+            correct = int(record.get("correct_count", 0))
+            next_review = str(record.get("next_review", ""))
+            learned = bool(record.get("learned", False))
+            due_bonus = 2.4 if self._is_due(next_review) else 0.5
+            learned_bonus = 0.4 if learned else 1.1
+            weight = max(0.2, 1.0 + wrong * 1.6 - correct * 0.25 + due_bonus + learned_bonus)
+            weighted_words.append((english_word, weight))
+
+        words, weights = zip(*weighted_words)
+        return choice(words) if len(words) == 1 else choices(words, weights=weights, k=1)[0]
+
+    def _quiz_ready_candidates(self) -> list[tuple[str, dict[str, object]]]:
+        candidates: list[tuple[str, dict[str, object]]] = []
+        for english_word, record in self.progress_tracker.all_progress().items():
+            stage = str(record.get("learning_stage", "study")).strip().lower()
+            if stage != "quiz":
+                continue
+            candidates.append((english_word, record))
+        return candidates
+
+    @staticmethod
+    def _is_due(next_review: str) -> bool:
+        if not next_review:
+            return True
+        try:
+            return datetime.fromisoformat(next_review) <= datetime.now()
+        except ValueError:
+            return True
 
     def _build_ai_profile(self, *, seed_german: str, seed_english: str) -> AIWordProfile | None:
         if not self.ai_sentence_service.available:
@@ -306,6 +385,7 @@ class QuizEngine:
                 plural=noun_info.plural,
                 conjugations=conjugations,
             )
+        examples = self._normalize_examples(german_word, examples)
 
         focus_mode = choice(["translation", "sentence", "fill_blank", "article", "conjugation", "grammar"])
         if word_type != "noun" and focus_mode == "article":
@@ -357,6 +437,7 @@ class QuizEngine:
             plural=noun_info.plural,
             conjugations=conjugations,
         )
+        examples = self._normalize_examples(german_word, examples)
         ai_word_notes = profile.notes
 
         focus_mode = choice(["translation", "sentence", "fill_blank", "article", "conjugation", "grammar"])
@@ -404,6 +485,20 @@ class QuizEngine:
             ai_word_notes=ai_word_notes,
             focus_mode=focus_mode,
         )
+
+    @staticmethod
+    def _normalize_examples(german_word: str, examples: list[str]) -> list[str]:
+        cleaned = [str(x).strip() for x in examples if str(x).strip()]
+        if not cleaned:
+            return cleaned
+
+        statement = next((example for example in cleaned if not example.endswith("?")), cleaned[0])
+        question = next((example for example in cleaned if example.endswith("?")), "")
+        if not question:
+            question = f"Wie benutzt du {german_word} im Alltag?"
+        if statement == question:
+            return [statement]
+        return [statement, question]
 
     def evaluate(
         self,

@@ -5,17 +5,25 @@ from __future__ import annotations
 import json
 import os
 
+from services.prompt_store import PromptStore
+
 
 class AIWordService:
     """Generate German vocabulary with OpenAI and keep a local buffer."""
 
-    def __init__(self, model: str = "gpt-4.1-mini", enabled: bool = True, level: str = "A1.1") -> None:
+    def __init__(
+        self,
+        model: str = "gpt-4.1-mini",
+        enabled: bool = True,
+        level: str = "A1.1",
+    ) -> None:
         self.model = model
         self.enabled = enabled
         self.level = level
         self._client = None
         self._buffer: list[str] = []
         self._init_error = ""
+        self._prompts = PromptStore()
         self._init_client()
 
     @property
@@ -38,14 +46,12 @@ class AIWordService:
         return None
 
     def _request_words(self, count: int) -> list[str]:
-        prompt = (
-            "Generate beginner-safe German vocabulary for learners. "
-            "Return STRICT JSON only: {\"words\":[...]} with exactly "
-            f"{count} single-word German tokens.\n"
-            f"target_level: {self.level}\n"
-            "Rules: single words only, no punctuation, no proper names, no offensive content, "
-            "practical daily-life vocabulary matching CEFR level. Prefer dictionary base forms."
+        prompt = self._prompts.render(
+            "ai_word_request_words",
+            count=count,
+            target_level=self.level,
         )
+        system_prompt = self._prompts.get("ai_word_request_words").get("system", "")
 
         try:
             response = self._client.responses.create(
@@ -53,7 +59,7 @@ class AIWordService:
                 input=[
                     {
                         "role": "system",
-                        "content": "You generate clean CEFR vocabulary lists. Output strict JSON only.",
+                        "content": system_prompt,
                     },
                     {"role": "user", "content": prompt},
                 ],

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from services.prompt_store import PromptStore
+
 
 class AITranslatorService:
     """Translate between English and German with OpenAI."""
@@ -13,6 +15,7 @@ class AITranslatorService:
         self.enabled = enabled
         self._client = None
         self._init_error = ""
+        self._prompts = PromptStore()
         self._init_client()
 
     @property
@@ -30,16 +33,13 @@ class AITranslatorService:
         if not self.available:
             return token
 
-        prompt = (
-            "Translate this English word to standard German. "
-            "Return ONLY the German word (no punctuation, no explanation).\n"
-            f"word: {token}"
-        )
+        prompt = self._prompts.render("ai_translator_to_german", token=token)
+        system_prompt = self._prompts.get("ai_translator_to_german").get("system", "")
         try:
             response = self._client.responses.create(
                 model=self.model,
                 input=[
-                    {"role": "system", "content": "You are a precise EN->DE dictionary assistant."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 max_output_tokens=40,
@@ -57,16 +57,13 @@ class AITranslatorService:
         if not self.available:
             return token
 
-        prompt = (
-            "Translate this German word to English. "
-            "Return ONLY the English word (no punctuation, no explanation).\n"
-            f"word: {token}"
-        )
+        prompt = self._prompts.render("ai_translator_to_english", token=token)
+        system_prompt = self._prompts.get("ai_translator_to_english").get("system", "")
         try:
             response = self._client.responses.create(
                 model=self.model,
                 input=[
-                    {"role": "system", "content": "You are a precise DE->EN dictionary assistant."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 max_output_tokens=40,

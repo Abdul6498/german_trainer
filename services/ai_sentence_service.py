@@ -7,6 +7,8 @@ import os
 import re
 from dataclasses import dataclass
 
+from services.prompt_store import PromptStore
+
 
 @dataclass
 class AISentenceResult:
@@ -53,6 +55,7 @@ class AISentenceService:
         self.notes_mode = mode if mode in {"off", "short", "full"} else "off"
         self._client = None
         self._init_error = ""
+        self._prompts = PromptStore()
         self._init_client()
 
     def set_style_level(self, style_level: str) -> None:
@@ -79,20 +82,16 @@ class AISentenceService:
         if self._client is None:
             return None
 
-        prompt = (
-            "Create natural German example sentences for learners. "
-            "Return STRICT JSON only: {\"examples\":[...]} with exactly "
-            f"{count} sentences.\n"
-            f"word: {german_word}\n"
-            f"english: {english_word}\n"
-            f"word_type: {word_type}\n"
-            f"article: {article or '-'}\n"
-            f"plural: {plural or '-'}\n"
-            f"target_level: {self.style_level}\n"
-            "Rules:\n"
-            f"{self._style_rules(self.style_level)}\n"
-            "- Include the target word exactly as given in each sentence.\n"
-            "- Grammatically correct modern standard German."
+        prompt = self._prompts.render(
+            "ai_sentence_build_examples",
+            count=count,
+            german_word=german_word,
+            english_word=english_word,
+            word_type=word_type,
+            article=article or "-",
+            plural=plural or "-",
+            target_level=self.style_level,
+            style_rules=self._style_rules(self.style_level),
         )
 
         data = self._json_request(prompt)
@@ -104,10 +103,12 @@ class AISentenceService:
 
         if not examples:
             text = self._text_request(
-                "Create exactly 3 short German example sentences for this word.\n"
-                f"word: {german_word}\n"
-                f"target_level: {self.style_level}\n"
-                "Return ONLY 3 lines, one sentence per line, no numbering."
+                self._prompts.render(
+                    "ai_sentence_build_examples",
+                    key="fallback_user",
+                    german_word=german_word,
+                    target_level=self.style_level,
+                )
             )
             if text:
                 examples = [line.strip(" -\t") for line in text.splitlines() if line.strip()]
@@ -119,18 +120,12 @@ class AISentenceService:
         if self._client is None or not user_sentence.strip():
             return None
 
-        prompt = (
-            "You are a German teacher. Check the learner sentence and return STRICT JSON only: "
-            "{\"corrected\":\"...\",\"issues\":[\"...\"]}.\n"
-            f"target_word: {german_word}\n"
-            f"learner_sentence: {user_sentence}\n"
-            f"target_level: {self.style_level}\n"
-            "Rules:\n"
-            f"{self._style_rules(self.style_level)}\n"
-            "- Corrected sentence must be grammatical German and learner-friendly.\n"
-            "- Keep original meaning where possible.\n"
-            "- Keep the target word in corrected sentence.\n"
-            "- Issues should be short, practical feedback."
+        prompt = self._prompts.render(
+            "ai_sentence_correct_sentence",
+            german_word=german_word,
+            user_sentence=user_sentence,
+            target_level=self.style_level,
+            style_rules=self._style_rules(self.style_level),
         )
         data = self._json_request(prompt)
         if not data:
@@ -153,22 +148,14 @@ class AISentenceService:
         if self._client is None:
             return []
 
-        prompt = (
-            "You are my expert German teacher. "
-            "Create detailed notes for ONE word and return STRICT JSON only: {\"notes\":[...]}.\n"
-            f"target_level: {self.style_level}\n"
-            f"word_de: {german_word}\n"
-            f"word_en: {english_word}\n"
-            f"word_type: {word_type}\n"
-            f"article: {article or '-'}\n"
-            f"plural: {plural or '-'}\n"
-            "Rules:\n"
-            "- 8 to 12 note lines.\n"
-            "- Start in English and slowly mix simple German.\n"
-            "- Explain practical usage and mistakes.\n"
-            "- Mention cases/perfekt/modal usage when relevant.\n"
-            "- Include one mini real-life context.\n"
-            "- Use only this generated word as the center of explanation."
+        prompt = self._prompts.render(
+            "ai_sentence_build_study_notes",
+            target_level=self.style_level,
+            german_word=german_word,
+            english_word=english_word,
+            word_type=word_type,
+            article=article or "-",
+            plural=plural or "-",
         )
         data = self._json_request(prompt)
         if not data:
@@ -189,17 +176,11 @@ class AISentenceService:
             return None
 
         target_level = (level or self.style_level).upper().strip() or self.style_level
-        prompt = (
-            "Analyze one German sentence for a learner and return STRICT JSON only: "
-            "{\"translation_en\":\"...\",\"structure\":\"...\",\"points\":[\"...\"]}.\n"
-            f"target_level: {target_level}\n"
-            f"sentence_de: {german_sentence}\n"
-            "Rules:\n"
-            f"{self._style_rules(target_level)}\n"
-            "- translation_en: natural English meaning.\n"
-            "- structure: short pattern like 'Subject + Verb + Object'.\n"
-            "- points: 3-6 practical bullets explaining case, verb position, tense, and key grammar in easy language.\n"
-            "- Keep explanation in English with small German terms where useful."
+        prompt = self._prompts.render(
+            "ai_sentence_analyze_sentence",
+            target_level=target_level,
+            german_sentence=german_sentence,
+            style_rules=self._style_rules(target_level),
         )
         data = self._json_request(prompt)
         if not data:
@@ -230,20 +211,12 @@ class AISentenceService:
             return None
 
         target_level = (level or self.style_level).upper().strip() or self.style_level
-        prompt = (
-            "Check one German learner sentence and return STRICT JSON only: "
-            "{\"corrected\":\"...\",\"issues\":[\"...\"],\"translation_en\":\"...\",\"structure\":\"...\",\"points\":[\"...\"]}.\n"
-            f"target_level: {target_level}\n"
-            f"target_word: {german_word}\n"
-            f"learner_sentence: {user_sentence}\n"
-            "Rules:\n"
-            f"{self._style_rules(target_level)}\n"
-            "- corrected: grammatical German sentence; keep learner meaning where possible.\n"
-            "- Keep target_word in corrected when possible.\n"
-            "- issues: short actionable items; empty list if acceptable.\n"
-            "- translation_en: natural English translation.\n"
-            "- structure: short sentence pattern.\n"
-            "- points: 2-4 quick grammar notes."
+        prompt = self._prompts.render(
+            "ai_sentence_check_sentence_full",
+            target_level=target_level,
+            german_word=german_word,
+            user_sentence=user_sentence,
+            style_rules=self._style_rules(target_level),
         )
         data = self._json_request(prompt)
         if not data:
@@ -282,26 +255,13 @@ class AISentenceService:
             "short": "- notes: provide 2 short learning tips.",
             "full": "- notes: provide 6 concise learning tips.",
         }.get(self.notes_mode, "- notes: keep empty array.")
-        prompt = (
-            "Build ONE German learning word profile and return STRICT JSON only.\n"
-            "JSON schema keys: "
-            "{\"german_word\":\"...\",\"english_word\":\"...\",\"word_type\":\"noun|verb|adjective|adverb|preposition|pronoun|other\","
-            "\"cefr_level\":\"...\",\"article\":\"der|die|das|-\",\"plural\":\"... or -\","
-            "\"gender\":\"masculine|feminine|neutral|-\",\"noun_flexion\":{},\"conjugations\":{},"
-            "\"examples\":[\"...\",\"...\"],\"notes\":[],\"analysis_details\":{}}.\n"
-            f"target_level: {target_level}\n"
-            f"seed_german: {seed_german}\n"
-            f"seed_english: {seed_english}\n"
-            "Rules:\n"
-            f"{self._style_rules(target_level)}\n"
-            "- If seed_german is an infinitive concept (e.g. Lernen/Kommen), prefer verb lowercase infinitive.\n"
-            "- german_word must be a single common lemma.\n"
-            "- english_word must be a clean single-word or short-phrase meaning.\n"
-            "- For nouns: fill article/gender/plural and noun_flexion if possible.\n"
-            "- For verbs: fill conjugations for ich/du/er/sie/es/wir/ihr/sie.\n"
-            "- Provide exactly 2 natural example sentences using german_word.\n"
-            "- Keep noun_flexion compact; include only nominativ singular/plural if possible.\n"
-            f"{note_rule}"
+        prompt = self._prompts.render(
+            "ai_sentence_build_word_profile",
+            target_level=target_level,
+            seed_german=seed_german,
+            seed_english=seed_english,
+            style_rules=self._style_rules(target_level),
+            note_rule=note_rule,
         )
         data = self._json_request(prompt)
         if not data:
@@ -376,9 +336,10 @@ class AISentenceService:
                 input=[
                     {
                         "role": "system",
-                        "content": (
-                            f"You are a precise German {self.style_level} teaching assistant. "
-                            "Always follow constraints and output strict JSON only."
+                        "content": self._prompts.render(
+                            "ai_common_json_system",
+                            key="system",
+                            style_level=self.style_level,
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -420,55 +381,7 @@ class AISentenceService:
 
     @staticmethod
     def _style_rules(level: str) -> str:
-        lvl = level.upper()
-        if lvl == "A1.1":
-            return (
-                "- Strict A1.1 style.\\n"
-                "- Present tense only.\\n"
-                "- One short clause.\\n"
-                "- 3 to 6 words.\\n"
-                "- Very high-frequency daily vocabulary."
-            )
-        if lvl == "A1.2":
-            return (
-                "- A1.2 style.\\n"
-                "- Present tense only.\\n"
-                "- One short clause, occasional fixed phrase.\\n"
-                "- 4 to 8 words.\\n"
-                "- Simple prepositions and daily contexts."
-            )
-        if lvl == "A2.1":
-            return (
-                "- A2.1 style.\\n"
-                "- Mostly present tense; Perfekt allowed.\\n"
-                "- One clause, occasionally two short clauses.\\n"
-                "- 5 to 9 words."
-            )
-        if lvl == "A2.2":
-            return (
-                "- A2.2 style.\\n"
-                "- Present + Perfekt where natural.\\n"
-                "- One to two short clauses.\\n"
-                "- 6 to 11 words."
-            )
-        if lvl == "B1.1":
-            return (
-                "- B1.1 style.\\n"
-                "- Natural practical German.\\n"
-                "- One to two clauses with clear connectors.\\n"
-                "- 7 to 12 words."
-            )
-        if lvl in {"B1.2", "B1", "BB1"}:
-            return (
-                "- B1.2 style.\\n"
-                "- Natural modern German with mild complexity.\\n"
-                "- One to two clauses.\\n"
-                "- 8 to 14 words."
-            )
-        return (
-            f"- {lvl} learner style.\\n"
-            "- Keep language clear, natural, and practical."
-        )
+        return PromptStore().style_rules(level)
 
     @staticmethod
     def _parse_json_loose(text: str) -> dict[str, object] | None:
