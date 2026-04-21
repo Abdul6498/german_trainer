@@ -53,6 +53,36 @@ In `quiz-only`, the app now avoids inventing brand-new words. If you have no qui
 - Trainer engine, AI services, and progress logic remain in the Python modules under `engine/` and `services/`
 - AI prompt templates now live in `prompts/` as separate JSON files for easier prompt tuning and extension
 
+## Screenshots
+
+### Word Study
+
+![Word study mode](test_images/word_study_mode.png)
+
+### Word Quiz
+
+![Word quiz mode](test_images/word_quiz_mode.png)
+
+### Story Study
+
+![Story study mode](test_images/story_study_mode.png)
+
+![Story study mode alternate](test_images/story_study_mode_2.png)
+
+### Story Quiz
+
+![Story quiz mode](test_images/story_quiz_mode.png)
+
+![Story quiz mode alternate](test_images/story_quiz_mode_1.png)
+
+### Story Grading
+
+![Story quiz grading](test_images/story_quiz_mode_grading.png)
+
+### Settings
+
+![Settings drawer](test_images/settings.png)
+
 ## Notes
 
 - In AI mode, study cards and quiz feedback come from OpenAI-backed services.
