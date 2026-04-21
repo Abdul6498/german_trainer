@@ -236,7 +236,7 @@ class TrainerWebService:
         if not self._should_prefetch():
             return
         selection_mode, _display_stage = self._choose_card_plan()
-        if selection_mode != "study-new":
+        if selection_mode not in {"study-new", "story-new"}:
             return
         if self._current_quiz is not None or self._latest_result is not None or self._prefetched_quiz is not None:
             return
@@ -257,7 +257,7 @@ class TrainerWebService:
                 or self._latest_result is not None
                 or self._prefetched_quiz is not None
                 or not self._should_prefetch()
-                or selection_mode != "study-new"
+                or selection_mode not in {"study-new", "story-new"}
             ):
                 self._prefetch_in_flight = False
                 return
@@ -345,6 +345,15 @@ class TrainerWebService:
     def _choose_card_plan(self) -> tuple[str, str]:
         review_available = self.engine.has_quiz_ready_words()
 
+        if self.args.practice_mode == "story":
+            if self.args.mode == "study-only":
+                return ("story-new", "study")
+            if self.args.mode == "quiz-only":
+                return ("story-review", "quiz") if review_available else ("", "idle")
+            if review_available and self._last_card_kind != "quiz":
+                return ("story-review", "quiz")
+            return ("story-new", "study")
+
         if self.args.practice_mode == "repeat-practice":
             if review_available:
                 if self.args.mode == "study-only":
@@ -380,6 +389,7 @@ class TrainerWebService:
             ai_word_notes=quiz.ai_word_notes,
             conjugations=quiz.conjugations,
             analysis_details=quiz.analysis_details,
+            story=quiz.story,
             focus_mode=quiz.focus_mode,
         )
 

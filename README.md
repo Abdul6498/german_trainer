@@ -10,7 +10,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 export OPENAI_API_KEY="your_key_here"
-python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode learn-new --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
+python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode story --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
 ```
 
 Then open `http://127.0.0.1:8000`.
@@ -18,7 +18,7 @@ Then open `http://127.0.0.1:8000`.
 ## Run options
 
 - `--mode mixed|study-only|quiz-only`
-- `--practice-mode learn-new|repeat-practice`
+- `--practice-mode learn-new|repeat-practice|story`
 - `--view basic|detail`
 - `--word-source ai|local`
 - `--translation-source ai|deep-translator`
@@ -39,6 +39,9 @@ You can now also change `level`, `intensity`, `mode`, `word plan`, `pace`, `view
 - `repeat-practice`
   - Focuses on review/repetition from words already in your studied/quiz pool.
   - If no review words exist yet, the app falls back to study cards unless you are in `quiz-only`.
+- `story`
+  - Study mode shows a short story of around 80 words together with key vocabulary.
+  - Quiz mode gives hints and vocabulary and asks you to rewrite the story in German.
 
 In `quiz-only`, the app now avoids inventing brand-new words. If you have no quiz-ready words yet, it stays idle and tells you to study a few first.
 

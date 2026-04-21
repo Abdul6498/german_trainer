@@ -18,6 +18,8 @@ class AISentenceResult:
     translation_en: str = ""
     structure: str = ""
     structure_points: list[str] | None = None
+    is_correct: bool = False
+    checks: list[dict[str, object]] | None = None
 
 
 @dataclass
@@ -218,7 +220,7 @@ class AISentenceService:
             user_sentence=user_sentence,
             style_rules=self._style_rules(target_level),
         )
-        data = self._json_request(prompt)
+        data = self._json_request(prompt, max_output_tokens=650)
         if not data:
             return None
 
@@ -263,7 +265,7 @@ class AISentenceService:
             style_rules=self._style_rules(target_level),
             note_rule=note_rule,
         )
-        data = self._json_request(prompt)
+        data = self._json_request(prompt, max_output_tokens=500)
         if not data:
             return None
 
@@ -329,7 +331,96 @@ class AISentenceService:
             analysis_details=analysis_details,
         )
 
-    def _json_request(self, prompt: str) -> dict[str, object] | None:
+    def build_story_practice(
+        self,
+        *,
+        german_word: str,
+        english_word: str,
+        word_type: str,
+        level: str | None = None,
+        article: str = "",
+        plural: str = "",
+    ) -> dict[str, object] | None:
+        if self._client is None:
+            return None
+
+        target_level = (level or self.style_level).upper().strip() or self.style_level
+        prompt = self._prompts.render(
+            "ai_story_build_story",
+            target_level=target_level,
+            german_word=german_word,
+            english_word=english_word,
+            word_type=word_type,
+            article=article or "-",
+            plural=plural or "-",
+            style_rules=self._style_rules(target_level),
+        )
+        data = self._json_request(prompt)
+        if not data:
+            return None
+
+        title = str(data.get("title", "")).strip()
+        text = str(data.get("text", "")).strip()
+        vocabulary_raw = data.get("vocabulary", [])
+        hints_raw = data.get("hints", [])
+        question = str(data.get("question", "")).strip()
+        if not text:
+            return None
+        vocabulary = [str(x).strip() for x in vocabulary_raw] if isinstance(vocabulary_raw, list) else []
+        hints = [str(x).strip() for x in hints_raw] if isinstance(hints_raw, list) else []
+        return {
+            "title": title or f"Story with {german_word}",
+            "text": text,
+            "vocabulary": [x for x in vocabulary if x][:8],
+            "hints": [x for x in hints if x][:5],
+            "question": question or "Can you rewrite the story in your own words?",
+        }
+
+    def check_story_recall(
+        self,
+        *,
+        original_story: str,
+        user_story: str,
+        level: str | None = None,
+        hints: list[str] | None = None,
+        vocabulary: list[str] | None = None,
+    ) -> AISentenceResult | None:
+        if self._client is None or not user_story.strip():
+            return None
+
+        target_level = (level or self.style_level).upper().strip() or self.style_level
+        prompt = self._prompts.render(
+            "ai_story_check_story",
+            target_level=target_level,
+            original_story=original_story,
+            user_story=user_story,
+            hints=", ".join(hints or []) or "-",
+            vocabulary=", ".join(vocabulary or []) or "-",
+            style_rules=self._style_rules(target_level),
+        )
+        data = self._json_request(prompt)
+        if not data:
+            return None
+
+        corrected = str(data.get("corrected", "")).strip()
+        issues_raw = data.get("issues", [])
+        points_raw = data.get("points", [])
+        checks_raw = data.get("checks", [])
+        issues = [str(x).strip() for x in issues_raw] if isinstance(issues_raw, list) else []
+        points = [str(x).strip() for x in points_raw] if isinstance(points_raw, list) else []
+        checks = [dict(x) for x in checks_raw] if isinstance(checks_raw, list) else []
+        return AISentenceResult(
+            examples=[],
+            corrected_sentence=corrected,
+            issues=[x for x in issues if x],
+            translation_en=str(data.get("summary_en", "")).strip(),
+            structure=str(data.get("structure", "Story Recall")).strip(),
+            structure_points=[x for x in points if x],
+            is_correct=bool(data.get("is_correct", False)),
+            checks=checks,
+        )
+
+    def _json_request(self, prompt: str, max_output_tokens: int | None = None) -> dict[str, object] | None:
         try:
             response = self._client.responses.create(
                 model=self.model,
@@ -344,7 +435,7 @@ class AISentenceService:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_output_tokens=280 if self.compact_mode else 500,
+                max_output_tokens=max_output_tokens or (280 if self.compact_mode else 500),
             )
             text = getattr(response, "output_text", "") or ""
             return self._parse_json_loose(text)

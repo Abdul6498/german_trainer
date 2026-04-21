@@ -24,6 +24,7 @@ class QuizPayload(BaseModel):
     ai_word_notes: list[str] = Field(default_factory=list)
     conjugations: dict[str, str] = Field(default_factory=dict)
     analysis_details: dict[str, object] = Field(default_factory=dict)
+    story: dict[str, object] = Field(default_factory=dict)
     focus_mode: str
 
 
@@ -46,7 +47,7 @@ class SessionPayload(BaseModel):
     level: str
     new_words_today: int
     mode: str
-    practice_mode: Literal["learn-new", "repeat-practice"]
+    practice_mode: Literal["learn-new", "repeat-practice", "story"]
     view: str
     idle_message: str = ""
     quiz: QuizPayload | None = None
@@ -71,7 +72,7 @@ class SettingsPayload(BaseModel):
     level: str
     srs_intensity: Literal["easy", "medium", "hard"]
     mode: Literal["mixed", "study-only", "quiz-only"]
-    practice_mode: Literal["learn-new", "repeat-practice"]
+    practice_mode: Literal["learn-new", "repeat-practice", "story"]
     view: Literal["basic", "detail"]
     pace: Literal["timed", "continuous"]
     focus_timeout_minutes: int = Field(ge=0, le=120)

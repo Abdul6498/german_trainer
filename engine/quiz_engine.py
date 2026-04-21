@@ -30,6 +30,7 @@ class QuizItem:
     examples: list[str]
     ai_word_notes: list[str]
     focus_mode: str
+    story: dict[str, object]
     is_new: bool = False
 
 
@@ -52,6 +53,7 @@ class QuizResult:
     expected_type: str
     examples: list[str]
     conjugations: dict[str, str]
+    evaluation_checks: list[dict[str, object]] | None = None
 
 
 class QuizEngine:
@@ -88,6 +90,7 @@ class QuizEngine:
         mark_presented: bool = True,
         selection_mode: str = "default",
     ) -> QuizItem:
+        story_mode = selection_mode.strip().lower().startswith("story")
         is_new = bool(english_word and self.progress_tracker.is_new_word(english_word))
         if english_word is None:
             english_word = self._select_word_for_selection_mode(selection_mode)
@@ -96,6 +99,8 @@ class QuizEngine:
         cached_quiz = self._quiz_from_cached_meta(english_word or "")
         if cached_quiz is not None:
             cached_quiz.is_new = is_new
+            if story_mode:
+                cached_quiz = self._enrich_story_mode(cached_quiz)
             if mark_presented:
                 self.progress_tracker.mark_word_presented(cached_quiz.english_word)
             return cached_quiz
@@ -110,6 +115,8 @@ class QuizEngine:
                 cached_quiz = self._quiz_from_cached_meta(cached_english)
                 if cached_quiz is not None:
                     cached_quiz.is_new = is_new
+                    if story_mode:
+                        cached_quiz = self._enrich_story_mode(cached_quiz)
                     if mark_presented:
                         self.progress_tracker.mark_word_presented(cached_quiz.english_word)
                     return cached_quiz
@@ -140,6 +147,8 @@ class QuizEngine:
         if ai_profile:
             quiz = self._quiz_from_ai_profile(ai_profile)
             quiz.is_new = is_new
+            if story_mode:
+                quiz = self._enrich_story_mode(quiz)
             return quiz
 
         analysis = self.grammar_checker.analyze_word(german_word)
@@ -217,6 +226,8 @@ class QuizEngine:
             focus_mode = "conjugation"
         if word_type != "verb" and focus_mode == "conjugation":
             focus_mode = "article"
+        if story_mode:
+            focus_mode = "story"
 
         # Persist full word metadata locally to improve continuity and
         # avoid recomputing details during later study/review sessions.
@@ -245,7 +256,7 @@ class QuizEngine:
             },
         )
 
-        return QuizItem(
+        quiz = QuizItem(
             english_word=english_word,
             german_word=german_word,
             word_type=word_type,
@@ -258,16 +269,20 @@ class QuizEngine:
             examples=examples,
             ai_word_notes=ai_word_notes,
             focus_mode=focus_mode,
+            story={},
             is_new=is_new,
         )
+        if story_mode:
+            quiz = self._enrich_story_mode(quiz)
+        return quiz
 
     def _select_word_for_selection_mode(self, selection_mode: str) -> str:
         normalized = selection_mode.strip().lower()
-        if normalized in {"quiz-review", "repeat-practice"}:
+        if normalized in {"quiz-review", "repeat-practice", "story-review"}:
             review_word = self._select_quiz_ready_word()
             if review_word:
                 return review_word
-        if normalized == "study-new":
+        if normalized in {"study-new", "story-new"}:
             return self.word_source.next_word()
         return self._select_word_for_daily_goal()
 
@@ -406,6 +421,7 @@ class QuizEngine:
             examples=examples,
             ai_word_notes=ai_word_notes,
             focus_mode=focus_mode,
+            story=meta.get("story", {}) if isinstance(meta.get("story", {}), dict) else {},
         )
 
     def _quiz_from_ai_profile(self, profile: AIWordProfile) -> QuizItem:
@@ -484,7 +500,35 @@ class QuizEngine:
             examples=examples,
             ai_word_notes=ai_word_notes,
             focus_mode=focus_mode,
+            story={},
         )
+
+    def _enrich_story_mode(self, quiz: QuizItem) -> QuizItem:
+        cached_story = quiz.story if isinstance(quiz.story, dict) else {}
+        if not cached_story:
+            meta = self.progress_tracker.get_word_meta(quiz.english_word)
+            story_meta = meta.get("story", {})
+            if isinstance(story_meta, dict):
+                cached_story = dict(story_meta)
+
+        if not cached_story:
+            generated_story = self.ai_sentence_service.build_story_practice(
+                german_word=quiz.german_word,
+                english_word=quiz.english_word,
+                word_type=quiz.word_type,
+                level=quiz.cefr_level or self.ai_sentence_service.style_level,
+                article=quiz.noun_info.article,
+                plural=quiz.noun_info.plural,
+            )
+            if generated_story:
+                cached_story = generated_story
+                meta = dict(self.progress_tracker.get_word_meta(quiz.english_word))
+                meta["story"] = generated_story
+                self.progress_tracker.update_word_meta(quiz.english_word, meta)
+
+        quiz.focus_mode = "story"
+        quiz.story = cached_story if isinstance(cached_story, dict) else {}
+        return quiz
 
     @staticmethod
     def _normalize_examples(german_word: str, examples: list[str]) -> list[str]:
@@ -509,6 +553,9 @@ class QuizEngine:
         user_sentence: str,
         skipped: bool = False,
     ) -> QuizResult:
+        if quiz.focus_mode == "story":
+            return self._evaluate_story_quiz(quiz, user_sentence=user_sentence, skipped=skipped)
+
         expected_translation = quiz.german_word
         translation_correct = self._translation_matches(
             user_translation=user_translation,
@@ -590,6 +637,77 @@ class QuizEngine:
             expected_type=quiz.word_type,
             examples=quiz.examples,
             conjugations=quiz.conjugations,
+        )
+
+    def _evaluate_story_quiz(self, quiz: QuizItem, *, user_sentence: str, skipped: bool) -> QuizResult:
+        story = quiz.story if isinstance(quiz.story, dict) else {}
+        original_story = str(story.get("text", "")).strip()
+        hints = [str(x).strip() for x in story.get("hints", [])] if isinstance(story.get("hints", []), list) else []
+        vocabulary = [str(x).strip() for x in story.get("vocabulary", [])] if isinstance(story.get("vocabulary", []), list) else []
+
+        corrected_story = user_sentence.strip()
+        sentence_issues: list[str] = []
+        sentence_translation_en = ""
+        sentence_structure = "Story Recall"
+        sentence_structure_points: list[str] = []
+        evaluation_checks: list[dict[str, object]] = []
+        story_correct = False
+
+        ai_story = self.ai_sentence_service.check_story_recall(
+            original_story=original_story,
+            user_story=user_sentence,
+            level=self.ai_sentence_service.style_level,
+            hints=hints,
+            vocabulary=vocabulary,
+        )
+        if ai_story:
+            corrected_story = ai_story.corrected_sentence or corrected_story
+            sentence_issues = ai_story.issues or []
+            sentence_translation_en = ai_story.translation_en
+            sentence_structure = ai_story.structure or sentence_structure
+            sentence_structure_points = ai_story.structure_points or []
+            raw_checks = getattr(ai_story, "checks", []) or []
+            evaluation_checks = [
+                {"label": str(item.get("label", "")).strip(), "ok": bool(item.get("ok", False))}
+                for item in raw_checks
+                if isinstance(item, dict) and str(item.get("label", "")).strip()
+            ]
+            story_correct = bool(getattr(ai_story, "is_correct", False))
+
+        if not evaluation_checks:
+            evaluation_checks = [
+                {"label": "Story attempt submitted", "ok": bool(user_sentence.strip())},
+                {"label": "Key ideas covered", "ok": bool(user_sentence.strip()) and len(sentence_issues) == 0},
+                {"label": "Useful vocabulary used", "ok": bool(user_sentence.strip())},
+            ]
+            story_correct = bool(user_sentence.strip()) and len(sentence_issues) == 0
+
+        is_correct = story_correct and not skipped
+        existing_record = self.progress_tracker.get_word_progress(quiz.english_word)
+        updated_record = self.spaced_repetition.update(existing_record, is_correct)
+        merged_record = {**existing_record, **updated_record}
+        self.progress_tracker.update_word_progress(quiz.english_word, merged_record)
+        self.progress_tracker.record_attempt(is_correct)
+
+        return QuizResult(
+            is_correct=is_correct,
+            translation_correct=story_correct,
+            article_correct=True,
+            type_correct=True,
+            sentence_has_required_word=bool(user_sentence.strip()),
+            sentence_correct=story_correct,
+            sentence_corrected=corrected_story,
+            sentence_issues=sentence_issues,
+            sentence_translation_en=sentence_translation_en,
+            sentence_structure=sentence_structure,
+            sentence_structure_points=sentence_structure_points,
+            expected_translation=story.get("title", quiz.german_word),
+            expected_article="-",
+            expected_plural="-",
+            expected_type="story",
+            examples=quiz.examples,
+            conjugations={},
+            evaluation_checks=evaluation_checks,
         )
 
     def mark_learned(self, english_word: str) -> None:

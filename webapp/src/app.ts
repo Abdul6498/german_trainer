@@ -11,7 +11,7 @@ interface SessionResponse {
   level: string;
   new_words_today: number;
   mode: string;
-  practice_mode: "learn-new" | "repeat-practice";
+  practice_mode: "learn-new" | "repeat-practice" | "story";
   view: string;
   idle_message: string;
   quiz: QuizPayload | null;
@@ -34,6 +34,7 @@ interface QuizPayload {
   ai_word_notes: string[];
   conjugations: Record<string, string>;
   analysis_details: Record<string, unknown>;
+  story: Record<string, unknown>;
   focus_mode: string;
 }
 
@@ -80,6 +81,18 @@ function setVisible(id: string, visible: boolean): void {
 function setText(id: string, value: string): void {
   const el = document.getElementById(id);
   if (el) el.textContent = value;
+}
+
+function fillPills(id: string, items: string[]): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = "";
+  items.forEach((item) => {
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.textContent = item;
+    el.appendChild(pill);
+  });
 }
 
 function fillList(id: string, items: string[], speakable = false): void {
@@ -162,8 +175,23 @@ function formatSettingLabel(value: string): string {
     "quiz-only": "Quiz Only",
     "learn-new": "New",
     "repeat-practice": "Review",
+    "story": "Story",
   };
   return labels[normalized] ?? value.replace(/-/g, " ");
+}
+
+function currentSpokenWord(): string {
+  const quiz = state.session?.quiz;
+  if (!quiz) return "";
+  if (quiz.word_type === "noun" && quiz.noun_info.article) {
+    return `${quiz.noun_info.article} ${quiz.german_word}`;
+  }
+  return quiz.german_word;
+}
+
+function currentStoryText(): string {
+  const story = (state.session?.quiz?.story || {}) as Record<string, unknown>;
+  return String(story.text || "").trim();
 }
 
 function render(): void {
@@ -210,6 +238,11 @@ function render(): void {
   }
 
   if (session.stage === "study" && session.quiz) {
+    const story = (session.quiz.story || {}) as Record<string, unknown>;
+    const storyText = String(story.text || "").trim();
+    const storyTitle = String(story.title || "").trim();
+    const storyVocabulary = ((story.vocabulary as string[] | undefined) || []).filter(Boolean);
+    const storyMode = session.quiz.focus_mode === "story";
     const studyKey = `${session.quiz.english_word}::${session.quiz.german_word}::${session.quiz.word_type}`;
     if (state.activeStudyKey !== studyKey) {
       state.activeStudyKey = studyKey;
@@ -217,11 +250,26 @@ function render(): void {
       state.activeCardStartedAt = Date.now();
       setTimeoutState(false);
     }
-    setText("heroTitle", `Study ${session.quiz.german_word}`);
-    setText("heroCopy", "Scan the word, hear it, then move it forward when you're ready.");
+    setText("heroTitle", storyMode ? "Study the story" : `Study ${session.quiz.german_word}`);
+    setText(
+      "heroCopy",
+      storyMode
+        ? "Read the story, listen to it aloud, and continue when you understand it."
+        : "Scan the word, hear it, then move it forward when you're ready.",
+    );
+    setText("studyEyebrow", storyMode ? "Story Study" : "Study");
     setText("studyGerman", session.quiz.german_word);
     setText("studyEnglish", `English: ${session.quiz.english_word}`);
     setVisible("studyNewBadge", Boolean(session.quiz.is_new));
+    setVisible("studyWordBlock", !storyMode);
+    setVisible("studyMeta", !storyMode);
+    setVisible("studyStoryCard", Boolean(storyText));
+    setVisible("studyStoryVocabWrap", storyVocabulary.length > 0);
+    setVisible("studySupportGrid", !storyMode);
+    setText("studyStoryTitle", storyTitle || "Story");
+    setText("studyStoryText", storyText);
+    setText("studyExamplesTitle", storyText ? "Quick Examples" : "Examples");
+    fillPills("studyStoryVocab", storyVocabulary);
     const meta = [
       session.quiz.word_type,
       session.quiz.cefr_level || "-",
@@ -240,14 +288,31 @@ function render(): void {
     }
     fillList("studyExamples", session.quiz.examples, true);
     fillList("studyNotes", session.quiz.ai_word_notes.length ? session.quiz.ai_word_notes : ["No extra notes for this card."]);
+    setText(
+      "understoodLabel",
+      storyMode
+        ? "I understand this story. Next time ask me to rewrite it."
+        : "I understand this word. Next time quiz me in English.",
+    );
   }
 
   if (session.stage !== "study") {
     state.activeStudyKey = null;
     setVisible("studyNewBadge", false);
+    setVisible("studyStoryCard", false);
+    setVisible("studyWordBlock", true);
+    setVisible("studyMeta", true);
+    setVisible("studySupportGrid", true);
+    setText("studyEyebrow", "Study");
+    setText("understoodLabel", "I understand this word. Next time quiz me in English.");
   }
 
   if (session.stage === "quiz" && session.quiz) {
+    const story = (session.quiz.story || {}) as Record<string, unknown>;
+    const storyMode = session.quiz.focus_mode === "story";
+    const storyQuestion = String(story.question || "").trim();
+    const storyHints = ((story.hints as string[] | undefined) || []).filter(Boolean);
+    const storyVocabulary = ((story.vocabulary as string[] | undefined) || []).filter(Boolean);
     const quizKey = `${session.quiz.english_word}::${session.quiz.german_word}::${session.quiz.word_type}`;
     if (state.activeQuizKey !== quizKey) {
       state.activeQuizKey = quizKey;
@@ -260,14 +325,34 @@ function render(): void {
       setTimeoutState(false);
     }
     setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
-    setText("heroCopy", "Translate, identify the word type, and add a sentence when you want feedback.");
+    setText(
+      "heroCopy",
+      storyMode
+        ? "Use the hints and vocabulary, then rewrite the story in German."
+        : "Translate, identify the word type, and add a sentence when you want feedback.",
+    );
     setText("quizEnglish", session.quiz.english_word);
     setVisible("quizNewBadge", Boolean(session.quiz.is_new));
+    setVisible("quizStoryCard", storyMode);
+    setVisible("translationField", !storyMode);
+    setVisible("articleField", !storyMode);
+    setVisible("wordTypeField", !storyMode);
+    setText("sentenceFieldLabel", storyMode ? "Write the story" : "Your sentence");
+    setText("quizStoryQuestion", storyQuestion || "Rewrite the story in your own words.");
+    setVisible("quizStoryHintsWrap", storyHints.length > 0);
+    setVisible("quizStoryVocabWrap", storyVocabulary.length > 0);
+    fillList("quizStoryHints", storyHints);
+    fillPills("quizStoryVocab", storyVocabulary);
   }
 
   if (session.stage !== "quiz") {
     state.activeQuizKey = null;
     setVisible("quizNewBadge", false);
+    setVisible("quizStoryCard", false);
+    setVisible("translationField", true);
+    setVisible("articleField", true);
+    setVisible("wordTypeField", true);
+    setText("sentenceFieldLabel", "Your sentence");
   }
 
   if (session.stage === "result" && session.result) {
@@ -282,11 +367,16 @@ function render(): void {
       resultLabel.className = String(result.is_correct) === "true" ? "result-correct" : "result-wrong";
     }
     setText("resultSummary", `Expected: ${String(result.expected_translation || "")} • Type: ${String(result.expected_type || "")}`);
-    setResultChecks([
-      { label: `Translation correct: ${String(result.translation_correct)}`, ok: Boolean(result.translation_correct) },
-      { label: `Article correct: ${String(result.article_correct)}`, ok: Boolean(result.article_correct) },
-      { label: `Type correct: ${String(result.type_correct)}`, ok: Boolean(result.type_correct) },
-    ]);
+    const customChecks = (result.evaluation_checks as Array<{ label: string; ok: boolean }> | undefined) || [];
+    if (customChecks.length) {
+      setResultChecks(customChecks);
+    } else {
+      setResultChecks([
+        { label: `Translation correct: ${String(result.translation_correct)}`, ok: Boolean(result.translation_correct) },
+        { label: `Article correct: ${String(result.article_correct)}`, ok: Boolean(result.article_correct) },
+        { label: `Type correct: ${String(result.type_correct)}`, ok: Boolean(result.type_correct) },
+      ]);
+    }
     const sentenceItems: string[] = [];
     if (result.sentence_corrected) sentenceItems.push(`Correction: ${String(result.sentence_corrected)}`);
     if (result.sentence_translation_en) sentenceItems.push(`English: ${String(result.sentence_translation_en)}`);
@@ -368,15 +458,6 @@ function startPolling(): void {
   }, 1000);
 }
 
-function currentSpokenWord(): string {
-  const quiz = state.session?.quiz;
-  if (!quiz) return "";
-  if (quiz.word_type === "noun" && quiz.noun_info.article) {
-    return `${quiz.noun_info.article} ${quiz.german_word}`;
-  }
-  return quiz.german_word;
-}
-
 function bindEvents(): void {
   document.getElementById("triggerNowButton")?.addEventListener("click", async () => {
     state.session = await request<SessionResponse>("/api/trigger", { method: "POST" });
@@ -409,6 +490,7 @@ function bindEvents(): void {
   });
 
   document.getElementById("studyWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("studyStorySpeakButton")?.addEventListener("click", () => void speakGerman(currentStoryText()));
   document.getElementById("quizWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {

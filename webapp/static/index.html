@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>German Trainer</title>
-    <link rel="stylesheet" href="/styles.css?v=20260406d" />
+    <link rel="stylesheet" href="/styles.css?v=20260421a" />
   </head>
   <body>
     <div class="app-shell">
@@ -105,8 +105,8 @@
 
         <section class="card study-card hidden" id="studyCard">
           <div class="card-header">
-            <div>
-              <span class="eyebrow">Study</span>
+            <div id="studyWordBlock">
+              <span class="eyebrow" id="studyEyebrow">Study</span>
               <div class="spoken-line">
                 <button class="speak-inline-button" id="studyWordSpeakButton" type="button" aria-label="Pronounce word">🔊</button>
                 <h3 id="studyGerman">-</h3>
@@ -118,9 +118,20 @@
             </div>
           </div>
           <div class="pill-row" id="studyMeta"></div>
-          <div class="study-grid">
-            <div class="subcard">
-              <h4><span class="section-icon">◇</span> Examples</h4>
+          <div class="subcard story-panel hidden" id="studyStoryCard">
+            <div class="story-heading">
+              <h4><span class="section-icon">✦</span> <span id="studyStoryTitle">Story</span></h4>
+              <button class="speak-inline-button" id="studyStorySpeakButton" type="button" aria-label="Read story aloud">🔊</button>
+            </div>
+            <p class="story-text" id="studyStoryText"></p>
+            <div class="story-vocab hidden" id="studyStoryVocabWrap">
+              <h5>Vocabulary</h5>
+              <div class="pill-row" id="studyStoryVocab"></div>
+            </div>
+          </div>
+          <div class="study-grid" id="studySupportGrid">
+            <div class="subcard" id="studyExamplesCard">
+              <h4><span class="section-icon">◇</span> <span id="studyExamplesTitle">Examples</span></h4>
               <ul id="studyExamples"></ul>
             </div>
             <div class="subcard" id="studyNotesCard">
@@ -131,7 +142,7 @@
           <div class="actions">
             <label class="checkbox">
               <input type="checkbox" id="understoodCheckbox" />
-              <span>I understand this word. Next time quiz me in English.</span>
+              <span id="understoodLabel">I understand this word. Next time quiz me in English.</span>
             </label>
             <button class="primary-button success-button" id="studyContinueButton" type="button">Got It</button>
           </div>
@@ -153,11 +164,23 @@
           </div>
 
           <form id="quizForm" class="form-grid">
-            <label>
+            <div class="subcard full hidden story-panel" id="quizStoryCard">
+              <h4><span class="section-icon">✦</span> Story Recall</h4>
+              <p class="story-text" id="quizStoryQuestion"></p>
+              <div class="story-hints hidden" id="quizStoryHintsWrap">
+                <h5>Hints</h5>
+                <ul id="quizStoryHints"></ul>
+              </div>
+              <div class="story-vocab hidden" id="quizStoryVocabWrap">
+                <h5>Vocabulary</h5>
+                <div class="pill-row" id="quizStoryVocab"></div>
+              </div>
+            </div>
+            <label id="translationField">
               <span>German translation</span>
               <input type="text" id="translationInput" autocomplete="off" />
             </label>
-            <label>
+            <label id="articleField">
               <span>Article</span>
               <select id="articleInput">
                 <option value="der">der</option>
@@ -166,7 +189,7 @@
                 <option value="">-</option>
               </select>
             </label>
-            <label>
+            <label id="wordTypeField">
               <span>Word type</span>
               <select id="wordTypeInput">
                 <option value="noun">noun</option>
@@ -178,8 +201,8 @@
                 <option value="other">other</option>
               </select>
             </label>
-            <label class="full">
-              <span>Your sentence</span>
+            <label class="full" id="sentenceField">
+              <span id="sentenceFieldLabel">Your sentence</span>
               <textarea id="sentenceInput" rows="4"></textarea>
             </label>
             <label class="checkbox full">
@@ -323,8 +346,9 @@
           <select id="settingsPracticeMode">
             <option value="learn-new">Learn New Words</option>
             <option value="repeat-practice">Repeat Practice</option>
+            <option value="story">Story Practice</option>
           </select>
-          <small class="field-hint">Use AI for new study words, or switch to repetition from your understood words.</small>
+          <small class="field-hint">Use AI for new words, repetition from understood words, or short story recall practice.</small>
         </label>
         <label>
           <span class="stat-label">View</span>
@@ -353,6 +377,6 @@
       </form>
     </aside>
 
-    <script type="module" src="/app.js?v=20260406d"></script>
+    <script type="module" src="/app.js?v=20260421a"></script>
   </body>
 </html>

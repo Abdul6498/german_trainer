@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--practice-mode",
-        choices=["learn-new", "repeat-practice"],
+        choices=["learn-new", "repeat-practice", "story"],
         default="learn-new",
         help="Choose whether to introduce new words or practice already-understood words.",
     )
