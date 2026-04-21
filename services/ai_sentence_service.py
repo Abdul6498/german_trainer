@@ -20,6 +20,8 @@ class AISentenceResult:
     structure_points: list[str] | None = None
     is_correct: bool = False
     checks: list[dict[str, object]] | None = None
+    estimated_level: str = ""
+    score_out_of_10: str = ""
 
 
 @dataclass
@@ -360,6 +362,7 @@ class AISentenceService:
             return None
 
         title = str(data.get("title", "")).strip()
+        topic = str(data.get("topic", "")).strip()
         text = str(data.get("text", "")).strip()
         vocabulary_raw = data.get("vocabulary", [])
         hints_raw = data.get("hints", [])
@@ -369,11 +372,12 @@ class AISentenceService:
         vocabulary = [str(x).strip() for x in vocabulary_raw] if isinstance(vocabulary_raw, list) else []
         hints = [str(x).strip() for x in hints_raw] if isinstance(hints_raw, list) else []
         return {
+            "topic": topic or title or f"Thema mit {german_word}",
             "title": title or f"Story with {german_word}",
             "text": text,
             "vocabulary": [x for x in vocabulary if x][:8],
             "hints": [x for x in hints if x][:5],
-            "question": question or "Can you rewrite the story in your own words?",
+            "question": question or f"Schreibe die Geschichte in deinen eigenen Worten nach. | Rewrite the story in your own words.",
         }
 
     def check_story_recall(
@@ -418,6 +422,8 @@ class AISentenceService:
             structure_points=[x for x in points if x],
             is_correct=bool(data.get("is_correct", False)),
             checks=checks,
+            estimated_level=str(data.get("estimated_level", "")).strip(),
+            score_out_of_10=str(data.get("score_out_of_10", "")).strip(),
         )
 
     def _json_request(self, prompt: str, max_output_tokens: int | None = None) -> dict[str, object] | None:

@@ -194,6 +194,21 @@ function currentStoryText(): string {
   return String(story.text || "").trim();
 }
 
+function currentQuizSpeakText(): string {
+  const quiz = state.session?.quiz;
+  if (!quiz) return "";
+  if (quiz.focus_mode === "story") {
+    const story = (quiz.story || {}) as Record<string, unknown>;
+    return (
+      String(story.topic || "").trim() ||
+      String(story.title || "").trim() ||
+      String(story.question || "").trim() ||
+      currentStoryText()
+    );
+  }
+  return currentSpokenWord();
+}
+
 function render(): void {
   const session = state.session;
   if (!session) return;
@@ -239,6 +254,7 @@ function render(): void {
 
   if (session.stage === "study" && session.quiz) {
     const story = (session.quiz.story || {}) as Record<string, unknown>;
+    const storyTopic = String(story.topic || "").trim();
     const storyText = String(story.text || "").trim();
     const storyTitle = String(story.title || "").trim();
     const storyVocabulary = ((story.vocabulary as string[] | undefined) || []).filter(Boolean);
@@ -266,7 +282,7 @@ function render(): void {
     setVisible("studyStoryCard", Boolean(storyText));
     setVisible("studyStoryVocabWrap", storyVocabulary.length > 0);
     setVisible("studySupportGrid", !storyMode);
-    setText("studyStoryTitle", storyTitle || "Story");
+    setText("studyStoryTitle", storyTitle || storyTopic || "Story");
     setText("studyStoryText", storyText);
     setText("studyExamplesTitle", storyText ? "Quick Examples" : "Examples");
     fillPills("studyStoryVocab", storyVocabulary);
@@ -310,6 +326,8 @@ function render(): void {
   if (session.stage === "quiz" && session.quiz) {
     const story = (session.quiz.story || {}) as Record<string, unknown>;
     const storyMode = session.quiz.focus_mode === "story";
+    const storyTopic = String(story.topic || "").trim();
+    const storyTitle = String(story.title || "").trim();
     const storyQuestion = String(story.question || "").trim();
     const storyHints = ((story.hints as string[] | undefined) || []).filter(Boolean);
     const storyVocabulary = ((story.vocabulary as string[] | undefined) || []).filter(Boolean);
@@ -324,21 +342,21 @@ function render(): void {
       state.activeCardStartedAt = Date.now();
       setTimeoutState(false);
     }
-    setText("heroTitle", `Quiz: ${session.quiz.english_word}`);
+    setText("heroTitle", storyMode ? `Quiz: ${storyTopic || storyTitle || "Story"}` : `Quiz: ${session.quiz.english_word}`);
     setText(
       "heroCopy",
       storyMode
         ? "Use the hints and vocabulary, then rewrite the story in German."
         : "Translate, identify the word type, and add a sentence when you want feedback.",
     );
-    setText("quizEnglish", session.quiz.english_word);
+    setText("quizEnglish", storyMode ? (storyTopic || storyTitle || session.quiz.english_word) : session.quiz.english_word);
     setVisible("quizNewBadge", Boolean(session.quiz.is_new));
     setVisible("quizStoryCard", storyMode);
     setVisible("translationField", !storyMode);
     setVisible("articleField", !storyMode);
     setVisible("wordTypeField", !storyMode);
     setText("sentenceFieldLabel", storyMode ? "Write the story" : "Your sentence");
-    setText("quizStoryQuestion", storyQuestion || "Rewrite the story in your own words.");
+    setText("quizStoryQuestion", storyQuestion || "Schreibe die Geschichte in deinen eigenen Worten nach. | Rewrite the story in your own words.");
     setVisible("quizStoryHintsWrap", storyHints.length > 0);
     setVisible("quizStoryVocabWrap", storyVocabulary.length > 0);
     fillList("quizStoryHints", storyHints);
@@ -359,14 +377,28 @@ function render(): void {
     setTimeoutState(false);
     const result = session.result as Record<string, unknown>;
     const quiz = result.quiz as QuizPayload;
+    const resultStory = (quiz?.story || {}) as Record<string, unknown>;
+    const resultStoryTopic = String(resultStory.topic || "").trim();
+    const resultStoryTitle = String(resultStory.title || "").trim();
+    const isStoryResult = String(result.expected_type || "").trim() === "story";
     setText("heroTitle", String(result.result_label || "Result"));
-    setText("heroCopy", `Word: ${quiz.german_word} • English: ${quiz.english_word}`);
+    setText(
+      "heroCopy",
+      isStoryResult
+        ? `Story: ${resultStoryTitle || resultStoryTopic || String(result.expected_translation || "")}`
+        : `Word: ${quiz.german_word} • English: ${quiz.english_word}`,
+    );
     setText("resultLabel", String(result.result_label || "Result"));
     const resultLabel = document.getElementById("resultLabel");
     if (resultLabel) {
       resultLabel.className = String(result.is_correct) === "true" ? "result-correct" : "result-wrong";
     }
-    setText("resultSummary", `Expected: ${String(result.expected_translation || "")} • Type: ${String(result.expected_type || "")}`);
+    const scoreOutOf10 = String(result.score_out_of_10 || "").trim();
+    const estimatedLevel = String(result.estimated_level || "").trim();
+    const summaryParts = [`Expected: ${String(result.expected_translation || "")}`, `Type: ${String(result.expected_type || "")}`];
+    if (estimatedLevel) summaryParts.push(`Level: ${estimatedLevel}`);
+    if (scoreOutOf10) summaryParts.push(`Score: ${scoreOutOf10}`);
+    setText("resultSummary", summaryParts.join(" • "));
     const customChecks = (result.evaluation_checks as Array<{ label: string; ok: boolean }> | undefined) || [];
     if (customChecks.length) {
       setResultChecks(customChecks);
@@ -387,7 +419,9 @@ function render(): void {
       sentenceItems.push(...((result.sentence_issues as string[]) || []));
     }
     fillList("resultSentence", sentenceItems.length ? sentenceItems : ["No sentence feedback for this round."]);
-    fillList("resultExamples", (result.examples as string[]) || [], true);
+    const resultExamples = (result.examples as string[]) || [];
+    setVisible("resultExamplesCard", session.view === "detail" && resultExamples.length > 0);
+    fillList("resultExamples", resultExamples, true);
   }
 }
 
@@ -491,7 +525,7 @@ function bindEvents(): void {
 
   document.getElementById("studyWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
   document.getElementById("studyStorySpeakButton")?.addEventListener("click", () => void speakGerman(currentStoryText()));
-  document.getElementById("quizWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentSpokenWord()));
+  document.getElementById("quizWordSpeakButton")?.addEventListener("click", () => void speakGerman(currentQuizSpeakText()));
 
   document.getElementById("studyContinueButton")?.addEventListener("click", async () => {
     const understood = (document.getElementById("understoodCheckbox") as HTMLInputElement).checked;

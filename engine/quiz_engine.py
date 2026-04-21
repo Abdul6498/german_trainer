@@ -54,6 +54,8 @@ class QuizResult:
     examples: list[str]
     conjugations: dict[str, str]
     evaluation_checks: list[dict[str, object]] | None = None
+    estimated_level: str = ""
+    score_out_of_10: str = ""
 
 
 class QuizEngine:
@@ -511,7 +513,20 @@ class QuizEngine:
             if isinstance(story_meta, dict):
                 cached_story = dict(story_meta)
 
-        if not cached_story:
+        story_topic = str(cached_story.get("topic", "")).strip() if isinstance(cached_story, dict) else ""
+        story_title = str(cached_story.get("title", "")).strip() if isinstance(cached_story, dict) else ""
+        story_question = str(cached_story.get("question", "")).strip() if isinstance(cached_story, dict) else ""
+        story_hints = cached_story.get("hints", []) if isinstance(cached_story, dict) else []
+        hints_ok = isinstance(story_hints, list) and any(str(x).strip() for x in story_hints)
+        stale_story = (
+            not cached_story
+            or not story_topic
+            or not story_question
+            or not hints_ok
+            or story_title.lower().startswith("story with ")
+        )
+
+        if stale_story:
             generated_story = self.ai_sentence_service.build_story_practice(
                 german_word=quiz.german_word,
                 english_word=quiz.english_word,
@@ -652,6 +667,8 @@ class QuizEngine:
         sentence_structure_points: list[str] = []
         evaluation_checks: list[dict[str, object]] = []
         story_correct = False
+        estimated_level = ""
+        score_out_of_10 = ""
 
         ai_story = self.ai_sentence_service.check_story_recall(
             original_story=original_story,
@@ -673,6 +690,8 @@ class QuizEngine:
                 if isinstance(item, dict) and str(item.get("label", "")).strip()
             ]
             story_correct = bool(getattr(ai_story, "is_correct", False))
+            estimated_level = getattr(ai_story, "estimated_level", "") or ""
+            score_out_of_10 = getattr(ai_story, "score_out_of_10", "") or ""
 
         if not evaluation_checks:
             evaluation_checks = [
@@ -681,6 +700,17 @@ class QuizEngine:
                 {"label": "Useful vocabulary used", "ok": bool(user_sentence.strip())},
             ]
             story_correct = bool(user_sentence.strip()) and len(sentence_issues) == 0
+
+        if not estimated_level:
+            estimated_level = quiz.cefr_level or self.ai_sentence_service.style_level
+
+        if not score_out_of_10:
+            passed_checks = sum(1 for item in evaluation_checks if bool(item.get("ok", False)))
+            total_checks = max(1, len(evaluation_checks))
+            raw_score = round((passed_checks / total_checks) * 10)
+            if story_correct and raw_score < 7:
+                raw_score = 7
+            score_out_of_10 = f"{max(1, min(10, raw_score))}/10"
 
         is_correct = story_correct and not skipped
         existing_record = self.progress_tracker.get_word_progress(quiz.english_word)
@@ -705,9 +735,11 @@ class QuizEngine:
             expected_article="-",
             expected_plural="-",
             expected_type="story",
-            examples=quiz.examples,
+            examples=[],
             conjugations={},
             evaluation_checks=evaluation_checks,
+            estimated_level=estimated_level,
+            score_out_of_10=score_out_of_10,
         )
 
     def mark_learned(self, english_word: str) -> None:

@@ -10,7 +10,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 export OPENAI_API_KEY="your_key_here"
-python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode mixed --practice-mode story --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
+python -u main.py --interval-minutes 5 --level A2.1 --srs-intensity hard --mode quiz-only --practice-mode story --view basic --pace timed --focus-timeout-minutes 3 --sentence-source ai --word-source ai --translation-source ai --openai-model gpt-4.1-mini --daily-goal-words 60 --ai-notes short
 ```
 
 Then open `http://127.0.0.1:8000`.
